@@ -1,0 +1,5 @@
+protocol_version: "1.0"
+review:
+  required: true
+  authorized_reviewers:
+    - reviewer:maintainer-1

@@ -1,0 +1,25 @@
+protocol_version: "1.0"
+id: CHG-0001
+title: Correct empty-input error message
+status: in_review
+created_at: "2026-09-28T10:00:00Z"
+request: >-
+  Report a clear validation error when the command receives an empty input
+  file.
+proposal:
+  path: proposal.md
+  revision: 1
+  digest: sha256:ec9c4faa2e4d9cf245cbe8d56d64d0e961f4f55f6fd3449af67ea13064525266
+scope:
+  included:
+    - Empty-input error reporting
+  excluded:
+    - Parser behavior changes
+    - New dependencies
+preserved:
+  - Parser behavior
+  - Command-line options
+  - Existing tests
+test_changes: []
+decisions: []
+review_required: true

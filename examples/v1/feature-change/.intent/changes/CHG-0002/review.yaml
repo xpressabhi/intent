@@ -1,0 +1,11 @@
+protocol_version: "1.0"
+change_id: CHG-0002
+reviews:
+  - reviewer_id: reviewer:maintainer-1
+    reviewer_authority: repository-policy:maintainer
+    decision: approved
+    proposal_digest: sha256:2b5728f24bd06d6ead47d7d01c783d1a432a69ed1bc788c2e0db88419774627b
+    reviewed_at: "2026-09-28T10:30:00Z"
+    constraints:
+      - Preserve current flags and default output behavior
+      - Do not add a runtime dependency

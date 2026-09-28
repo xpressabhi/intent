@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intent: keep old behavior intact while AI changes your code</title>
+<meta name="description" content="A repo-owned protocol and verifier for agent-driven changes. Declared scope, protected tests, digest-bound approvals, and a green baseline.">
+<meta name="theme-color" content="#0d7a5c" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Intent: keep old behavior intact while AI changes your code">
+<meta property="og:description" content="A repo-owned protocol and verifier for agent-driven changes. Declared scope, protected tests, digest-bound approvals, and a green baseline.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d7a5c'/%3E%3Cpath d='M9 17l5 5 9-11' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script>document.documentElement.classList.add('js');</script>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --ink: #17191d;
+  --muted: #5b626c;
+  --line: #e4e6e9;
+  --accent: #0d7a5c;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(13, 122, 92, 0.09);
+  --warn: #9a6a10;
+  --warn-soft: rgba(154, 106, 16, 0.12);
+  --danger: #a63a32;
+  --danger-soft: rgba(166, 58, 50, 0.1);
+  --radius: 10px;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --measure: 62ch;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --surface: #161a20;
+    --ink: #e9ebee;
+    --muted: #9aa2ad;
+    --line: #272c34;
+    --accent: #3ecf9a;
+    --accent-ink: #06231a;
+    --accent-soft: rgba(62, 207, 154, 0.12);
+    --warn: #d9a548;
+    --warn-soft: rgba(217, 165, 72, 0.14);
+    --danger: #e07068;
+    --danger-soft: rgba(224, 112, 104, 0.13);
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--accent-soft); }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+img, svg { display: block; max-width: 100%; }
+h1, h2, h3 { margin: 0; line-height: 1.12; letter-spacing: -0.02em; font-weight: 650; }
+p { margin: 0; }
+.wrap { max-width: 1120px; margin-inline: auto; padding-inline: 24px; }
+.hero-grid > *, .split > *, .verify-grid > *, .cycle-grid > *, .install-grid > * { min-width: 0; }
+.skip {
+  position: absolute; left: -9999px; top: 0; background: var(--surface); color: var(--ink);
+  padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--radius); z-index: 100;
+}
+.skip:focus { left: 16px; top: 12px; }
+
+/* Header */
+.site-head {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+@supports ((backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px))) {
+  .site-head {
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  }
+}
+.head-inner { display: flex; align-items: center; gap: 24px; height: 62px; }
+.brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+.brand-mark { width: 22px; height: 22px; border-radius: 6px; }
+.site-nav { display: flex; gap: 22px; margin-left: 8px; }
+.site-nav a { color: var(--muted); text-decoration: none; font-size: 14.5px; font-weight: 500; }
+.site-nav a:hover { color: var(--ink); }
+.head-cta { margin-left: auto; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 20px; border-radius: var(--radius);
+  font-size: 15px; font-weight: 600; line-height: 1; text-decoration: none; white-space: nowrap;
+  border: 1px solid transparent;
+  transition: transform 120ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: var(--accent); background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+.btn-ghost { border-color: var(--line); color: var(--ink); background: var(--surface); }
+.btn-ghost:hover { border-color: var(--muted); }
+.btn-sm { padding: 9px 14px; font-size: 14px; }
+
+/* Hero */
+.hero { padding: 76px 0 64px; }
+.hero-grid { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 56px; align-items: center; }
+.hero h1 { font-size: clamp(2.1rem, 4.4vw, 3rem); }
+.hero .lede { margin-top: 18px; color: var(--muted); font-size: 18px; max-width: 46ch; }
+.cta-row { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+.hero-figure { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.hero-figure svg { width: 100%; height: auto; }
+
+/* Sections */
+.section { padding: 84px 0; }
+.section-alt { background: var(--surface); background: color-mix(in srgb, var(--surface) 62%, var(--bg)); border-block: 1px solid var(--line); }
+.section h2 { font-size: clamp(1.55rem, 2.8vw, 2.15rem); }
+.section-lede { margin-top: 14px; color: var(--muted); font-size: 17px; max-width: var(--measure); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.split .prose p { margin-top: 14px; color: var(--muted); max-width: var(--measure); }
+figure { margin: 0; }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.diagram svg { width: 100%; height: auto; }
+.diagram-note { margin-top: 12px; color: var(--muted); font-size: 14px; }
+.cycle-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: center; }
+
+/* Lifecycle states */
+.state-list { list-style: none; margin: 22px 0 0; padding: 0; }
+.state-list li { padding: 14px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+.state-list li strong { color: var(--ink); font-weight: 600; }
+
+/* Verifier */
+.verify-grid { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 56px; align-items: start; }
+.checks { list-style: none; margin: 26px 0 0; padding: 0; }
+.checks li { display: grid; grid-template-columns: 26px 1fr; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); }
+.checks .tick { width: 20px; height: 20px; margin-top: 3px; color: var(--accent); }
+.checks strong { display: block; font-size: 15.5px; font-weight: 600; }
+.checks span { color: var(--muted); font-size: 14.5px; }
+.terminal {
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px 20px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--mono); font-size: 13px; line-height: 1.75; color: var(--ink);
+}
+.terminal .ok { color: var(--accent); }
+.terminal .bad { color: var(--danger); }
+.terminal .dim { color: var(--muted); }
+.terminal + .terminal { margin-top: 14px; }
+
+/* Tree */
+.tree {
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px 22px; overflow-x: auto;
+  font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--ink);
+}
+.tree .c { color: var(--muted); }
+.tree .d { color: var(--accent); font-weight: 600; }
+
+/* Install */
+.install-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: start; }
+.code-col { display: grid; gap: 14px; }
+.code-block {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--mono); font-size: 13px; line-height: 1.7; margin: 0;
+}
+.code-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-family: var(--mono); margin-bottom: 7px; }
+.steps { list-style: none; margin: 26px 0 0; padding: 0; counter-reset: step; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+.steps li::before { content: counter(step); font-family: var(--mono); font-size: 13px; color: var(--accent); padding-top: 1px; }
+.steps strong { color: var(--ink); font-weight: 600; }
+
+/* Footer */
+.site-foot { border-top: 1px solid var(--line); padding: 40px 0 56px; }
+.foot-inner { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: baseline; }
+.foot-inner .fine { color: var(--muted); font-size: 14px; }
+.foot-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-left: auto; }
+.foot-links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.foot-links a:hover { color: var(--ink); }
+
+/* Reveal and sequence motion */
+html.js [data-reveal] { opacity: 0; transform: translateY(14px); transition: opacity 640ms cubic-bezier(0.16, 1, 0.3, 1), transform 640ms cubic-bezier(0.16, 1, 0.3, 1); }
+html.js [data-reveal].is-visible { opacity: 1; transform: none; }
+html.js [data-step] { opacity: 0.32; transition: opacity 420ms ease; }
+html.reduced [data-reveal], html.reduced [data-step] { opacity: 1; transform: none; transition: none; }
+html.reduced .draw { stroke-dashoffset: 0 !important; }
+
+/* Diagram primitives */
+.dg-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.4; }
+.dg-box-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.dg-box-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.4; }
+.dg-box-danger { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.4; }
+.dg-line { stroke: var(--line); stroke-width: 1.6; fill: none; }
+.dg-line-accent { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.dg-line-danger { stroke: var(--danger); stroke-width: 1.6; fill: none; }
+.dg-t { font-family: var(--mono); font-size: 14px; fill: var(--ink); }
+.dg-s { font-family: var(--sans); font-size: 12.5px; fill: var(--muted); }
+.mk { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.mk-ok { stroke: var(--accent); }
+.mk-bad { stroke: var(--danger); }
+.mk-warn { stroke: var(--warn); }
+.draw { stroke-dasharray: 260; stroke-dashoffset: 260; transition: stroke-dashoffset 900ms cubic-bezier(0.16, 1, 0.3, 1); }
+.on .draw, .draw.on { stroke-dashoffset: 0; }
+.pop { opacity: 0; transform: scale(0.72); transform-box: fill-box; transform-origin: center; transition: opacity 320ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.on .pop, .pop.on { opacity: 1; transform: scale(1); }
+.box-hl { fill: var(--accent-soft); stroke: var(--accent); transition: fill 420ms ease, stroke 420ms ease; }
+.on.box-hl, .on .box-hl { fill: var(--accent-soft); stroke: var(--accent); }
+
+/* Scramble target */
+.scramble { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal], html.js [data-step] { opacity: 1; transform: none; transition: none; }
+  .draw { stroke-dashoffset: 0 !important; transition: none; }
+  .pop { opacity: 1; transform: none; transition: none; }
+  .btn { transition: none; }
+}
+
+@media (max-width: 960px) {
+  .hero-grid, .split, .verify-grid, .cycle-grid, .install-grid { grid-template-columns: 1fr; gap: 36px; }
+  .hero { padding: 48px 0 40px; }
+  .section { padding: 64px 0; }
+}
+@media (max-width: 640px) {
+  .dg-t { font-size: 16px; }
+  .dg-s { font-size: 14px; }
+}
+@media (max-width: 720px) {
+  .site-nav { display: none; }
+  .hero h1 { font-size: clamp(1.9rem, 8vw, 2.5rem); }
+  .hero .lede { font-size: 16.5px; }
+  .head-inner { gap: 12px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="wrap head-inner">
+    <a class="brand" href="#top" aria-label="Intent, back to top">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M9 17l5 5 9-11" fill="none" stroke="var(--accent-ink)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Intent
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="#problem">Why</a>
+      <a href="#lifecycle">Lifecycle</a>
+      <a href="#verifier">Verifier</a>
+      <a href="#install">Install</a>
+    </nav>
+    <a class="btn btn-primary btn-sm head-cta" href="https://github.com/OWNER/intent">View on GitHub</a>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div data-reveal>
+        <h1>AI edits fast. Old behavior still holds.</h1>
+        <p class="lede">A repo-owned protocol and verifier for agent-driven changes. Every change declares what it preserves, and the baseline stays green.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/OWNER/intent">View on GitHub</a>
+          <a class="btn btn-ghost" href="#install">Install in a repo</a>
+        </div>
+      </div>
+      <figure class="hero-figure" data-sequence data-reveal>
+        <svg viewBox="0 0 620 260" role="img" aria-label="Diagram: proposal.md is hashed, the digest is recorded in change.yaml and review.yaml, and the verifier checks all three.">
+          <rect class="dg-box" x="14" y="24" width="172" height="72" rx="10"/>
+          <text class="dg-t" x="34" y="52">proposal.md</text>
+          <text class="dg-s" x="34" y="74">the intent, as bytes</text>
+          <path class="dg-line draw" d="M186 60 H 226" marker-end="url(#arrow)"/>
+          <rect class="dg-box box-hl" x="226" y="32" width="152" height="56" rx="10"/>
+          <text class="dg-t" x="246" y="52">sha256</text>
+          <text class="dg-t scramble" data-scramble x="246" y="72">9f3c…7a2e</text>
+          <path class="dg-line draw" style="transition-delay:.18s" d="M378 60 H 406 M 406 38 V 114 M 406 38 H 436 M 406 114 H 436" marker-end="url(#arrow)"/>
+          <rect class="dg-box" x="436" y="12" width="170" height="52" rx="10"/>
+          <text class="dg-t" x="454" y="30">change.yaml</text>
+          <text class="dg-s" x="454" y="48">digest</text>
+          <rect class="dg-box" x="436" y="90" width="170" height="52" rx="10"/>
+          <text class="dg-t" x="454" y="108">review.yaml</text>
+          <text class="dg-s" x="454" y="126">proposal_digest</text>
+          <path class="dg-line draw" style="transition-delay:.3s" d="M521 142 V 176" marker-end="url(#arrow)"/>
+          <rect class="dg-box-accent" x="14" y="180" width="592" height="60" rx="10"/>
+          <circle class="pop" style="transition-delay:.44s" cx="48" cy="210" r="11" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+          <path class="mk mk-ok pop" style="transition-delay:.44s" d="M43 210 l4 4 l7 -8"/>
+          <text class="dg-t" x="72" y="203">verify-change.sh</text>
+          <text class="dg-s" x="72" y="222">digest matches, approval bound, tests declared</text>
+          <text class="dg-s" x="470" y="222">all checks pass</text>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)"/>
+            </marker>
+          </defs>
+        </svg>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="problem">
+    <div class="wrap split">
+      <div class="prose" data-reveal>
+        <h2>The quiet regression</h2>
+        <p>Agent-driven changes get merged because the suite is green. If a test was edited to get there, green means nothing. Intent makes that shortcut visible and blocking in CI.</p>
+      </div>
+      <figure class="diagram" data-sequence data-reveal>
+        <svg viewBox="0 0 640 250" role="img" aria-label="Diagram: a failing test is edited instead of fixed, the suite turns green, and the old behavior is gone. Intent flags the undeclared test edit.">
+          <g data-step>
+            <rect class="dg-box-danger" x="20" y="44" width="180" height="150" rx="10"/>
+            <path class="mk mk-bad pop" d="M92 84 l16 16 M108 84 l-16 16"/>
+            <text class="dg-t" x="42" y="132">test fails</text>
+            <text class="dg-s" x="42" y="154">the regression shows up</text>
+            <text class="dg-s" x="42" y="174">as expected</text>
+          </g>
+          <path class="dg-line-danger draw" data-step d="M200 120 H 228" marker-end="url(#arrow2)"/>
+          <g data-step>
+            <rect class="dg-box-warn" x="230" y="44" width="180" height="150" rx="10"/>
+            <text class="dg-t" x="252" y="118">edit the test</text>
+            <text class="dg-s" x="252" y="140">the shortcut nobody</text>
+            <text class="dg-s" x="252" y="160">not declared anywhere</text>
+          </g>
+          <path class="dg-line draw" data-step d="M410 120 H 438" marker-end="url(#arrow2)"/>
+          <g data-step>
+            <rect class="dg-box" x="440" y="44" width="180" height="150" rx="10"/>
+            <path class="mk mk-ok pop" d="M500 92 l12 12 l22 -24"/>
+            <text class="dg-t" x="462" y="134">suite green</text>
+            <text class="dg-s" x="462" y="156">old behavior is now</text>
+            <text class="dg-s" x="462" y="176">unguarded</text>
+          </g>
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)"/>
+            </marker>
+          </defs>
+        </svg>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="lifecycle">
+    <div class="wrap">
+      <h2>A lifecycle that pauses only when it must</h2>
+      <p class="section-lede">Inception, construction, and conformance review. Clear work proceeds; a person is asked only for a material decision or when repository policy reserves it.</p>
+      <div class="cycle-grid">
+        <ul class="state-list" data-reveal>
+          <li><strong>Draft to implementing.</strong> Concise scope and verification are recorded, then work starts. No approval ceremony by default.</li>
+          <li><strong>The review gate is conditional.</strong> Material ambiguity or repository policy pauses only the work that depends on the answer.</li>
+          <li><strong>Close with evidence.</strong> A conformance record states outcomes, deviations, and verification; a complete change must include it.</li>
+        </ul>
+        <figure class="diagram" data-sequence data-reveal>
+          <svg viewBox="0 0 880 300" role="img" aria-label="Lifecycle diagram: draft goes to implementing or to in_review, in_review goes to approved or changes_requested, approved goes to implementing, then conformance_review and complete. A gap in conformance sends the change back to implementing.">
+            <g data-step>
+              <rect class="dg-box" x="240" y="34" width="150" height="62" rx="10"/>
+              <text class="dg-t" x="262" y="56">in_review</text>
+              <text class="dg-s" x="262" y="76">decision needed</text>
+            </g>
+            <g data-step>
+              <rect class="dg-box" x="470" y="34" width="150" height="62" rx="10"/>
+              <text class="dg-t" x="492" y="56">approved</text>
+              <text class="dg-s" x="492" y="76">digest bound</text>
+            </g>
+            <g data-step>
+              <rect class="dg-box" x="30" y="170" width="140" height="62" rx="10"/>
+              <text class="dg-t" x="52" y="192">draft</text>
+              <text class="dg-s" x="52" y="212">scope recorded</text>
+            </g>
+            <g data-step>
+              <rect class="dg-box" x="238" y="170" width="170" height="62" rx="10"/>
+              <text class="dg-t" x="260" y="192">implementing</text>
+              <text class="dg-s" x="260" y="212">in approved scope</text>
+            </g>
+            <g data-step>
+              <rect class="dg-box" x="458" y="170" width="200" height="62" rx="10"/>
+              <text class="dg-t" x="480" y="192">conformance_review</text>
+              <text class="dg-s" x="480" y="212">outcomes vs intent</text>
+            </g>
+            <g data-step>
+              <rect class="dg-box-accent" x="698" y="170" width="150" height="62" rx="10"/>
+              <text class="dg-t" x="720" y="192">complete</text>
+              <text class="dg-s" x="720" y="212">evidence recorded</text>
+            </g>
+            <g data-step>
+              <path class="dg-line-accent draw" d="M390 65 H 468" marker-end="url(#arrow3)"/>
+              <path class="dg-line draw" d="M170 201 H 236" marker-end="url(#arrow3)"/>
+              <path class="dg-line draw" d="M408 201 H 456" marker-end="url(#arrow3)"/>
+              <path class="dg-line draw" d="M658 201 H 696" marker-end="url(#arrow3)"/>
+            </g>
+            <g data-step>
+              <path class="dg-line draw" d="M108 170 C 108 108, 315 150, 315 98" marker-end="url(#arrow3)"/>
+              <path class="dg-line draw" d="M545 98 C 545 140, 323 142, 323 168" marker-end="url(#arrow3)"/>
+            </g>
+            <g data-step>
+              <path class="dg-line draw" d="M558 232 C 558 282, 323 282, 323 234" marker-end="url(#arrow3)"/>
+              <text class="dg-s" x="380" y="276">gap found, fix in scope</text>
+            </g>
+            <defs>
+              <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)"/>
+              </marker>
+            </defs>
+          </svg>
+          <p class="diagram-note">Changes requested return to draft. A rejection stops the change. Unknown states and invalid transitions fail closed.</p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="verifier">
+    <div class="wrap verify-grid">
+      <div>
+        <h2>Every claim is checked against the repository</h2>
+        <p class="section-lede">The verifier reads the change record and the diff, then reports each unmet rule instead of passing quietly.</p>
+        <ul class="checks" data-reveal>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Proposal digest matches</strong><span>SHA-256 over proposal.md bytes, compared to the recorded digest.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Test changes are declared</strong><span>Every modified, skipped, or deleted test appears in the proposal and in test_changes.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Protected paths stay intact</strong><span>Test paths are protected by default and configurable per repository.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Scope containment</strong><span>When the change declares path globs, edits outside them fail.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Approval is bound</strong><span>When policy requires review, an approval must name the current digest and an authorized reviewer.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Baseline stays green</strong><span>The repository check runs at the change and at its base revision.</span></span></li>
+        </ul>
+      </div>
+      <div data-reveal>
+        <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-change.sh --change .intent/changes/CHG-0007 --base origin/main</span>
+verify-change: proposal digest matches change.yaml
+<span class="bad">verify-change: FAIL: protected path changed but not declared in the proposal: tests/export_test.py</span>
+<span class="bad">verify-change: FAIL: approval evidence for the current proposal digest is missing</span>
+verify-change: 2 check(s) failed</pre>
+        <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-change.sh --change .intent/changes/CHG-0007 --base origin/main --command 'make test'</span>
+verify-change: proposal digest matches change.yaml
+verify-change: changed paths are within declared scope
+verify-change: change verification command passed
+<span class="ok">verify-change: change verified: .intent/changes/CHG-0007</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="digest">
+    <div class="wrap">
+      <h2>Approval binds to the proposal digest</h2>
+      <p class="section-lede">An approval names the SHA-256 of proposal.md. Edit the proposal after approval and the digest stops matching, so the old approval no longer opens the gate.</p>
+      <figure class="diagram" data-sequence data-reveal>
+        <svg viewBox="0 0 760 280" role="img" aria-label="Diagram: proposal.md is hashed once, and the same digest must appear in change.yaml, review.yaml, and the approval evidence.">
+          <g data-step>
+            <rect class="dg-box" x="20" y="100" width="190" height="80" rx="10"/>
+            <text class="dg-t" x="42" y="130">proposal.md</text>
+            <text class="dg-s" x="42" y="152">the reviewed bytes</text>
+          </g>
+          <path class="dg-line draw" data-step d="M210 140 H 248" marker-end="url(#arrow4)"/>
+          <g data-step>
+            <rect class="dg-box box-hl" x="248" y="112" width="176" height="56" rx="10"/>
+            <text class="dg-t" x="268" y="132">sha256</text>
+            <text class="dg-t scramble" data-scramble x="268" y="152">2b57…276b</text>
+          </g>
+          <path class="dg-line draw" data-step d="M424 140 H 470 M 470 42 V 238 M 470 42 H 548 M 470 140 H 548 M 470 238 H 548" marker-end="url(#arrow4)"/>
+          <g data-step>
+            <rect class="dg-box" x="548" y="18" width="192" height="48" rx="10"/>
+            <text class="dg-t" x="568" y="34">change.yaml</text>
+            <text class="dg-s" x="568" y="52">digest: sha256:…</text>
+          </g>
+          <g data-step>
+            <rect class="dg-box" x="548" y="116" width="192" height="48" rx="10"/>
+            <text class="dg-t" x="568" y="132">review.yaml</text>
+            <text class="dg-s" x="568" y="150">proposal_digest: sha256:…</text>
+          </g>
+          <g data-step>
+            <rect class="dg-box" x="548" y="214" width="192" height="48" rx="10"/>
+            <text class="dg-t" x="568" y="230">approval</text>
+            <text class="dg-s" x="568" y="248">names the same digest</text>
+          </g>
+          <g data-step>
+            <circle class="pop" cx="524" cy="42" r="9" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+            <path class="mk mk-ok pop" d="M519 42 l4 4 l6 -7"/>
+            <circle class="pop" cx="524" cy="140" r="9" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+            <path class="mk mk-ok pop" d="M519 140 l4 4 l6 -7"/>
+            <circle class="pop" cx="524" cy="238" r="9" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+            <path class="mk mk-ok pop" d="M519 238 l4 4 l6 -7"/>
+          </g>
+          <defs>
+            <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)"/>
+            </marker>
+          </defs>
+        </svg>
+        <p class="diagram-note">Approval constraints travel with the decision. An agent cannot approve its own proposal, and a merge or comment is not approval unless the policy adapter verifies it.</p>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="records">
+    <div class="wrap split">
+      <div class="prose" data-reveal>
+        <h2>Records live in your repository</h2>
+        <p>No central service. The protocol, schemas, verifier, decision log, and every change record live in .intent/ and travel with the code.</p>
+        <p>The installer pins the versions your records were written under. Upgrading is a deliberate reinstall with --upgrade, and existing configuration and project facts are preserved.</p>
+      </div>
+      <pre class="tree" data-reveal><span class="d">.intent/</span>
+  config.yaml            <span class="c"># policy, reviewers, protected paths</span>
+  PROJECT.md             <span class="c"># repo facts, build and test commands</span>
+  decisions/             <span class="c"># durable rationale across changes</span>
+  changes/CHG-0007/
+    proposal.md          <span class="c"># the intent, digest bound</span>
+    change.yaml          <span class="c"># state, scope, digest, test changes</span>
+    review.yaml          <span class="c"># approval evidence, when required</span>
+    conformance.md       <span class="c"># verification record</span>
+  protocol/v1.md         <span class="c"># pinned contract</span>
+  schemas/v1/            <span class="c"># machine-checkable rules</span>
+  scripts/verify-change.sh
+AGENTS.md                <span class="c"># managed guidance block</span></pre>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="install">
+    <div class="wrap install-grid">
+      <div data-reveal>
+        <h2>Install once, verify in CI</h2>
+        <p class="section-lede">The installer writes only its marked sections and never stages or commits anything. Approval stays off until policy turns it on.</p>
+        <ol class="steps" data-reveal>
+          <li><span><strong>Install the pinned bundle</strong> into any Git repository on macOS or Linux.</span></li>
+          <li><span><strong>Set policy.verify_command</strong> in .intent/config.yaml so checks run without flags.</span></li>
+          <li><span><strong>Run the verifier in CI</strong> against the change's base revision, with the baseline required.</span></li>
+        </ol>
+      </div>
+      <div class="code-col" data-reveal>
+        <div>
+          <div class="code-label">Install</div>
+          <pre class="code-block">sh scripts/install.sh --target /path/to/your/repo</pre>
+        </div>
+        <div>
+          <div class="code-label">Verify in CI</div>
+          <pre class="code-block">sh .intent/scripts/verify-change.sh \
+  --change .intent/changes/CHG-0007 \
+  --base origin/main \
+  --command 'make test' --baseline</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap foot-inner">
+    <span class="fine">Intent protocol 1.0, draft. MIT licensed.</span>
+    <nav class="foot-links" aria-label="Repository">
+      <a href="https://github.com/OWNER/intent/blob/main/protocol/v1.md">Protocol</a>
+      <a href="https://github.com/OWNER/intent/tree/main/schemas/v1">Schemas</a>
+      <a href="https://github.com/OWNER/intent/blob/main/scripts/verify-change.sh">Verifier</a>
+      <a href="https://github.com/OWNER/intent/blob/main/scripts/install.sh">Installer</a>
+      <a href="https://github.com/OWNER/intent/blob/main/LICENSE">License</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) { root.classList.add('reduced'); }
+
+  function forEach(list, fn) { Array.prototype.forEach.call(list, fn); }
+
+  function observe(elements, options, onEnter) {
+    if (!('IntersectionObserver' in window)) {
+      forEach(elements, onEnter);
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          onEnter(entry.target);
+          io.unobserve(entry.target);
+        }
+      });
+    }, options);
+    forEach(elements, function (el) { io.observe(el); });
+  }
+
+  observe(document.querySelectorAll('[data-reveal]'), { threshold: 0.15, rootMargin: '0px 0px -6% 0px' }, function (el) {
+    el.classList.add('is-visible');
+  });
+
+  observe(document.querySelectorAll('[data-sequence]'), { threshold: 0.25 }, function (el) {
+    var steps = el.querySelectorAll('[data-step]');
+    el.classList.add('on');
+    if (reduce) { return; }
+    forEach(steps, function (step, i) {
+      window.setTimeout(function () { step.classList.add('on'); }, 160 + i * 260);
+    });
+  });
+
+  if (reduce) { return; }
+
+  var hex = '0123456789abcdef';
+  observe(document.querySelectorAll('[data-scramble]'), { threshold: 0.5 }, function (el) {
+    var finalText = el.textContent;
+    var frames = 16;
+    var frame = 0;
+    var timer = window.setInterval(function () {
+      frame += 1;
+      var progress = frame / frames;
+      var out = '';
+      for (var i = 0; i < finalText.length; i += 1) {
+        var ch = finalText.charAt(i);
+        if (ch === '…' || i < finalText.length * progress) { out += ch; }
+        else { out += hex.charAt(Math.floor(Math.random() * hex.length)); }
+      }
+      el.textContent = out;
+      if (frame >= frames) {
+        window.clearInterval(timer);
+        el.textContent = finalText;
+      }
+    }, 50);
+  });
+})();
+</script>
+</body>
+</html>

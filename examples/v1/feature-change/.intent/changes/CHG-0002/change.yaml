@@ -1,0 +1,30 @@
+protocol_version: "1.0"
+id: CHG-0002
+title: Stream filtered records as JSON Lines
+status: approved
+created_at: "2026-09-28T10:15:00Z"
+request: >-
+  Export records matching existing query filters as JSON Lines while keeping
+  memory use bounded.
+proposal:
+  path: proposal.md
+  revision: 1
+  digest: sha256:2b5728f24bd06d6ead47d7d01c783d1a432a69ed1bc788c2e0db88419774627b
+scope:
+  included:
+    - JSON Lines output mode
+    - Streaming serialization through the existing query path
+    - Focused export coverage
+  excluded:
+    - Scheduled exports
+    - Cloud storage
+    - Changes to existing JSON output
+preserved:
+  - Existing JSON output and default behavior
+  - All other pre-existing tests
+test_changes:
+  - path: "tests/export_test.py"
+    kind: modified
+    reason: "Existing export test now also asserts the jsonl option"
+decisions: []
+review_required: true

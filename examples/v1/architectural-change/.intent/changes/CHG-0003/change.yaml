@@ -1,0 +1,23 @@
+protocol_version: "1.0"
+id: CHG-0003
+title: Move audit history to an append-only event stream
+status: in_review
+created_at: "2026-09-28T11:00:00Z"
+request: >-
+  Persist durable audit history for account-setting changes using the
+  repository's existing event stream.
+proposal:
+  path: proposal.md
+  revision: 2
+  digest: sha256:0573b6aea636c2ebeb1f0260ece47fd1f9556c29dd9db554ee93f02d7a56a90d
+scope:
+  included:
+    - Versioned account-setting events
+    - Backward-compatible history reads
+    - Compatibility handling for older records
+  excluded:
+    - A separate persistence service
+    - Changes to the current settings API
+    - Rewriting unrelated event types
+decisions: []
+review_required: true

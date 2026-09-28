@@ -1,0 +1,21 @@
+# Template record: a valid change has no unresolved TODO fields and passes change.schema.json.
+# change.yaml mirrors the proposal's scope and decisions; proposal.md stays authoritative for the digest.
+protocol_version: "1.0"
+id: "TODO-CHANGE-ID"
+title: "TODO: title makes the intended result identifiable"
+status: "draft"
+created_at: "TODO: RFC 3339 timestamp"
+request: "TODO: requested observable result"
+proposal:
+  path: "proposal.md"
+  revision: 1
+  digest: "sha256:TODO"
+scope:
+  included:
+    - "TODO: observable in-scope result"
+  excluded: []
+  paths: [] # Optional: path globs this change may touch; verification rejects undeclared paths.
+preserved: [] # Behavior that must not change; exceptions belong in test_changes and the proposal.
+test_changes: [] # Every pre-existing test modified, deleted, or skipped, with its reason.
+decisions: []
+review_required: false

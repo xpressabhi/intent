@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Intent repository configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "review"],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0",
+      "description": "Intent protocol version used by this repository."
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "authorized_reviewers"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set true only when repository policy requires human approval for every change."
+        },
+        "authorized_reviewers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Reviewer identities for repository-defined approval gates; the list may be empty when no approval gate is configured."
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protected_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Path globs whose existing files may not change unless the proposal declares them."
+        },
+        "verify_command": {
+          "type": "string",
+          "description": "Repository verification command; an empty string disables automatic runs."
+        },
+        "require_baseline": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set true to require a passing baseline run at the change's base revision."
+        }
+      }
+    }
+  }
+}
