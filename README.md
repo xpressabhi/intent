@@ -47,11 +47,11 @@ An adoption-ready repository has relevant project facts recorded in `.intent/PRO
 
 ## Install with an agent
 
-From inside the repository you want to adopt, paste one of these into Claude Code, OpenCode, or any agent with shell access:
+From inside the repository you want to adopt, paste this into Claude Code, OpenCode, or any agent with shell access:
 
-- Web access: `Read https://raw.githubusercontent.com/xpressabhi/intent/main/docs/install-prompt.md and follow it to install Intent in this repository.`
-- Git only: `Clone https://github.com/xpressabhi/intent to a temporary directory, read docs/install-prompt.md from the clone, and follow it to install Intent in this repository.`
-- Local checkout: `Read /path/to/intent/docs/install-prompt.md and follow it to install Intent in this repository.`
+```text
+Clone https://github.com/xpressabhi/intent to a temporary directory, read docs/install-prompt.md from the clone, and follow it to install Intent in this repository.
+```
 
 The prompt runs a dry run first, installs only on a clean preflight, completes `.intent/PROJECT.md` from repository evidence, and reports what is left. Save it as a slash command or skill if you install often.
 

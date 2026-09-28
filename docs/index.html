@@ -153,7 +153,7 @@ figure { margin: 0; }
 .checks span { color: var(--muted); font-size: 14.5px; }
 .terminal {
   margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 18px 20px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  padding: 18px 20px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: break-word;
   font-family: var(--mono); font-size: 13px; line-height: 1.75; color: var(--ink);
 }
 .terminal .ok { color: var(--accent); }
@@ -175,7 +175,7 @@ figure { margin: 0; }
 .code-col { display: grid; gap: 14px; }
 .code-block {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 16px 18px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  padding: 16px 18px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: break-word;
   font-family: var(--mono); font-size: 13px; line-height: 1.7; margin: 0;
 }
 .code-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-family: var(--mono); margin-bottom: 7px; }
@@ -504,9 +504,7 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
         </div>
         <div>
           <div class="code-label">Agent prompt</div>
-          <pre class="code-block">Clone github.com/xpressabhi/intent to a temporary directory,
-read docs/install-prompt.md from the clone, and follow it
-to install Intent in this repository.</pre>
+          <pre class="code-block">Clone https://github.com/xpressabhi/intent to a temporary directory, read docs/install-prompt.md from the clone, and follow it to install Intent in this repository.</pre>
         </div>
       </div>
     </div>
