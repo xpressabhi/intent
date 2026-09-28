@@ -488,6 +488,7 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
           <li><span><strong>Set policy.verify_command</strong> in .intent/config.yaml so checks run without flags.</span></li>
           <li><span><strong>Run the verifier in CI</strong> against the change's base revision, with the baseline required.</span></li>
         </ol>
+        <p class="section-lede">Or hand it to your agent: the <a href="install-prompt.md">install prompt</a> runs the dry run first, then installs and completes the project facts.</p>
       </div>
       <div class="code-col" data-reveal>
         <div>
@@ -500,6 +501,12 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
   --change .intent/changes/CHG-0007 \
   --base origin/main \
   --command 'make test' --baseline</pre>
+        </div>
+        <div>
+          <div class="code-label">Agent prompt</div>
+          <pre class="code-block">Clone github.com/OWNER/intent to a temporary directory,
+read docs/install-prompt.md from the clone, and follow it
+to install Intent in this repository.</pre>
         </div>
       </div>
     </div>

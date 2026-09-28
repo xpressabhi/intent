@@ -45,6 +45,16 @@ The installer adds a version-pinned `.intent/` bundle containing the protocol, s
 
 An adoption-ready repository has relevant project facts recorded in `.intent/PROJECT.md`; reviewer identities are needed only for configured approval gates. The installer leaves project-specific facts and language-specific files unchanged. It supplies guidance and records only; filesystem write permissions are enforced only when a controller mediates access. Target files remain unstaged and uncommitted.
 
+## Install with an agent
+
+From inside the repository you want to adopt, paste one of these into Claude Code, OpenCode, or any agent with shell access:
+
+- Web access: `Read https://raw.githubusercontent.com/OWNER/intent/main/docs/install-prompt.md and follow it to install Intent in this repository.`
+- Git only: `Clone https://github.com/OWNER/intent to a temporary directory, read docs/install-prompt.md from the clone, and follow it to install Intent in this repository.`
+- Local checkout: `Read /path/to/intent/docs/install-prompt.md and follow it to install Intent in this repository.`
+
+The prompt runs a dry run first, installs only on a clean preflight, completes `.intent/PROJECT.md` from repository evidence, and reports what is left. Save it as a slash command or skill if you install often.
+
 ## Verify changes in CI
 
 The pinned verifier checks a change's declarations, protected paths, lifecycle state, and approval evidence, then runs the repository's checks:
