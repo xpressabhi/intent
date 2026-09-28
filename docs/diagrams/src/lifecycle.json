@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Intent Lifecycle",
+    "output": ".archify/lifecycle-states-20260928-173209/lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "main", "label": "Change lifecycle" },
+    { "id": "gate", "label": "Human decision" },
+    { "id": "terminal", "label": "Stops" }
+  ],
+  "states": [
+    { "id": "draft", "type": "start", "label": "Draft", "sublabel": "scope recorded", "lane": "main", "col": 0, "step": "01", "tag": "recorded" },
+    { "id": "implementing", "type": "active", "label": "Implementing", "sublabel": "within declared scope", "lane": "main", "col": 2, "step": "02", "tag": "active" },
+    { "id": "conformance_review", "type": "decision", "label": "Conformance review", "sublabel": "outcomes vs intent", "lane": "main", "col": 3, "step": "03", "tag": "gate" },
+    { "id": "complete", "type": "success", "label": "Complete", "sublabel": "evidence recorded", "lane": "main", "col": 4, "step": "04", "tag": "done" },
+    { "id": "in_review", "type": "waiting", "label": "In review", "sublabel": "decision needed", "lane": "gate", "col": 1, "tag": "pause" },
+    { "id": "approved", "type": "decision", "label": "Approved", "sublabel": "digest bound", "lane": "gate", "col": 2, "tag": "authorized" },
+    { "id": "changes_requested", "type": "waiting", "label": "Changes requested", "sublabel": "response recorded", "lane": "gate", "col": 0, "tag": "revise" },
+    { "id": "rejected", "type": "failure", "label": "Rejected", "sublabel": "change stopped", "lane": "terminal", "col": 1, "tag": "terminal" }
+  ],
+  "transitions": [
+    { "from": "draft", "to": "implementing", "label": "clear outcome" },
+    { "from": "draft", "to": "in_review", "label": "decision needed" },
+    { "from": "in_review", "to": "approved", "label": "approved" },
+    { "from": "in_review", "to": "changes_requested", "label": "changes requested" },
+    { "from": "changes_requested", "to": "draft", "label": "revised" },
+    { "from": "in_review", "to": "rejected", "variant": "security" },
+    { "from": "approved", "to": "implementing", "label": "authorized" },
+    { "from": "implementing", "to": "conformance_review", "label": "ready" },
+    { "from": "implementing", "to": "in_review", "label": "material issue" },
+    { "from": "conformance_review", "to": "complete", "label": "conforms" },
+    { "from": "conformance_review", "to": "implementing", "label": "gap in scope" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Pauses only when it must",
+      "items": [
+        "Clear work moves from draft to implementing without an approval ceremony",
+        "A material decision parks only the work that depends on the answer",
+        "Repository policy can reserve specific actions for a human"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Every gate has evidence",
+      "items": [
+        "Approvals name the proposal digest and the reviewer's authority",
+        "A revised proposal invalidates the earlier approval",
+        "Unknown states and invalid transitions fail closed"
+      ]
+    }
+  ]
+}

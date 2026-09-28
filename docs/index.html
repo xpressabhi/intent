@@ -69,7 +69,7 @@ img, svg { display: block; max-width: 100%; }
 h1, h2, h3 { margin: 0; line-height: 1.12; letter-spacing: -0.02em; font-weight: 650; }
 p { margin: 0; }
 .wrap { max-width: 1120px; margin-inline: auto; padding-inline: 24px; }
-.hero-grid > *, .split > *, .verify-grid > *, .cycle-grid > *, .install-grid > * { min-width: 0; }
+.hero-grid > *, .split > *, .verify-grid > *, .install-grid > * { min-width: 0; }
 .skip {
   position: absolute; left: -9999px; top: 0; background: var(--surface); color: var(--ink);
   padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--radius); z-index: 100;
@@ -132,7 +132,12 @@ figure { margin: 0; }
 .diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .diagram svg { width: 100%; height: auto; }
 .diagram-note { margin-top: 12px; color: var(--muted); font-size: 14px; }
-.cycle-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: center; }
+.embed { display: grid; gap: 10px; min-width: 0; }
+.embed-lead { margin-top: 30px; }
+.embed-wide { margin-top: 52px; }
+.diagram-frame { width: 100%; height: 560px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.embed-link { font-family: var(--mono); font-size: 13.5px; justify-self: start; }
+.state-list.state-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 32px; margin-top: 40px; }
 
 /* Lifecycle states */
 .state-list { list-style: none; margin: 22px 0 0; padding: 0; }
@@ -226,13 +231,15 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
 }
 
 @media (max-width: 960px) {
-  .hero-grid, .split, .verify-grid, .cycle-grid, .install-grid { grid-template-columns: 1fr; gap: 36px; }
+  .hero-grid, .split, .verify-grid, .install-grid { grid-template-columns: 1fr; gap: 36px; }
   .hero { padding: 48px 0 40px; }
   .section { padding: 64px 0; }
+  .state-list.state-grid { grid-template-columns: 1fr; gap: 0; }
 }
 @media (max-width: 640px) {
   .dg-t { font-size: 16px; }
   .dg-s { font-size: 14px; }
+  .diagram-frame { height: 430px; }
 }
 @media (max-width: 720px) {
   .site-nav { display: none; }
@@ -349,67 +356,15 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
     <div class="wrap">
       <h2>A lifecycle that pauses only when it must</h2>
       <p class="section-lede">Inception, construction, and conformance review. Clear work proceeds; a person is asked only for a material decision or when repository policy reserves it.</p>
-      <div class="cycle-grid">
-        <ul class="state-list" data-reveal>
-          <li><strong>Draft to implementing.</strong> Concise scope and verification are recorded, then work starts. No approval ceremony by default.</li>
-          <li><strong>The review gate is conditional.</strong> Material ambiguity or repository policy pauses only the work that depends on the answer.</li>
-          <li><strong>Close with evidence.</strong> A conformance record states outcomes, deviations, and verification; a complete change must include it.</li>
-        </ul>
-        <figure class="diagram" data-sequence data-reveal>
-          <svg viewBox="0 0 880 300" role="img" aria-label="Lifecycle diagram: draft goes to implementing or to in_review, in_review goes to approved or changes_requested, approved goes to implementing, then conformance_review and complete. A gap in conformance sends the change back to implementing.">
-            <g data-step>
-              <rect class="dg-box" x="240" y="34" width="150" height="62" rx="10"/>
-              <text class="dg-t" x="262" y="56">in_review</text>
-              <text class="dg-s" x="262" y="76">decision needed</text>
-            </g>
-            <g data-step>
-              <rect class="dg-box" x="470" y="34" width="150" height="62" rx="10"/>
-              <text class="dg-t" x="492" y="56">approved</text>
-              <text class="dg-s" x="492" y="76">digest bound</text>
-            </g>
-            <g data-step>
-              <rect class="dg-box" x="30" y="170" width="140" height="62" rx="10"/>
-              <text class="dg-t" x="52" y="192">draft</text>
-              <text class="dg-s" x="52" y="212">scope recorded</text>
-            </g>
-            <g data-step>
-              <rect class="dg-box" x="238" y="170" width="170" height="62" rx="10"/>
-              <text class="dg-t" x="260" y="192">implementing</text>
-              <text class="dg-s" x="260" y="212">in approved scope</text>
-            </g>
-            <g data-step>
-              <rect class="dg-box" x="458" y="170" width="200" height="62" rx="10"/>
-              <text class="dg-t" x="480" y="192">conformance_review</text>
-              <text class="dg-s" x="480" y="212">outcomes vs intent</text>
-            </g>
-            <g data-step>
-              <rect class="dg-box-accent" x="698" y="170" width="150" height="62" rx="10"/>
-              <text class="dg-t" x="720" y="192">complete</text>
-              <text class="dg-s" x="720" y="212">evidence recorded</text>
-            </g>
-            <g data-step>
-              <path class="dg-line-accent draw" d="M390 65 H 468" marker-end="url(#arrow3)"/>
-              <path class="dg-line draw" d="M170 201 H 236" marker-end="url(#arrow3)"/>
-              <path class="dg-line draw" d="M408 201 H 456" marker-end="url(#arrow3)"/>
-              <path class="dg-line draw" d="M658 201 H 696" marker-end="url(#arrow3)"/>
-            </g>
-            <g data-step>
-              <path class="dg-line draw" d="M108 170 C 108 108, 315 150, 315 98" marker-end="url(#arrow3)"/>
-              <path class="dg-line draw" d="M545 98 C 545 140, 323 142, 323 168" marker-end="url(#arrow3)"/>
-            </g>
-            <g data-step>
-              <path class="dg-line draw" d="M558 232 C 558 282, 323 282, 323 234" marker-end="url(#arrow3)"/>
-              <text class="dg-s" x="380" y="276">gap found, fix in scope</text>
-            </g>
-            <defs>
-              <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)"/>
-              </marker>
-            </defs>
-          </svg>
-          <p class="diagram-note">Changes requested return to draft. A rejection stops the change. Unknown states and invalid transitions fail closed.</p>
-        </figure>
+      <div class="embed embed-lead" data-reveal>
+        <iframe class="diagram-frame" src="diagrams/lifecycle.html" title="Interactive Intent lifecycle: draft, review, approval, implementation, conformance review, and complete" loading="lazy"></iframe>
+        <a class="embed-link" href="diagrams/lifecycle.html">Open the lifecycle map full screen</a>
       </div>
+      <ul class="state-list state-grid" data-reveal>
+        <li><strong>Draft to implementing.</strong> Concise scope and verification are recorded, then work starts. No approval ceremony by default.</li>
+        <li><strong>The review gate is conditional.</strong> Material ambiguity or repository policy pauses only the work that depends on the answer.</li>
+        <li><strong>Close with evidence.</strong> A conformance record states outcomes, deviations, and verification; a complete change must include it.</li>
+      </ul>
     </div>
   </section>
 
@@ -440,7 +395,13 @@ verify-change: change verification command passed
 <span class="ok">verify-change: change verified: .intent/changes/CHG-0007</span></pre>
       </div>
     </div>
-  </section>
+      <div class="wrap">
+      <div class="embed embed-wide" data-reveal>
+        <iframe class="diagram-frame" src="diagrams/change-flow.html" title="Interactive sequence: declaration, approval, and verification of an Intent change" loading="lazy"></iframe>
+        <a class="embed-link" href="diagrams/change-flow.html">Open the change flow full screen</a>
+      </div>
+    </div>
+</section>
 
   <section class="section section-alt" id="digest">
     <div class="wrap">

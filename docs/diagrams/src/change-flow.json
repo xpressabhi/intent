@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Intent Change Flow",
+    "output": ".archify/sequence-change-flow-20260928-173209/change-flow.html",
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "agent", "type": "backend", "label": "Agent", "sublabel": "AI coding agent" },
+    { "id": "records", "type": "database", "label": "Records", "sublabel": ".intent/ in git" },
+    { "id": "reviewer", "type": "external", "label": "Reviewer", "sublabel": "authorized human" },
+    { "id": "verifier", "type": "security", "label": "Verifier", "sublabel": "CI gate" },
+    { "id": "checks", "type": "backend", "label": "Repo checks", "sublabel": "build + tests" }
+  ],
+  "segments": [
+    { "from": 150, "to": 200, "label": "Declare" },
+    { "from": 205, "to": 262, "label": "Approve" },
+    { "from": 275, "to": 385, "label": "Verify" }
+  ],
+  "messages": [
+    { "id": "record-proposal", "from": "agent", "to": "records", "y": 160, "label": "proposal.md + sha256 digest", "variant": "emphasis" },
+    { "id": "declare-delta", "from": "agent", "to": "records", "y": 188, "label": "scope, preserved, test changes", "variant": "default" },
+    { "id": "request-approval", "from": "agent", "to": "reviewer", "y": 218, "label": "request approval", "variant": "security" },
+    { "id": "approval-evidence", "from": "reviewer", "to": "records", "y": 248, "label": "approval names revision digest", "variant": "security" },
+    { "id": "read-record", "from": "verifier", "to": "records", "y": 286, "label": "read change.yaml + review.yaml", "variant": "default" },
+    { "id": "run-checks", "from": "verifier", "to": "checks", "y": 314, "label": "run baseline + change", "variant": "emphasis" },
+    { "id": "checks-green", "from": "checks", "to": "verifier", "y": 342, "label": "exit 0", "variant": "return" },
+    { "id": "conformance", "from": "agent", "to": "records", "y": 372, "label": "conformance.md", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "agent", "from": 155, "to": 378, "type": "backend" },
+    { "participant": "records", "from": 155, "to": 385, "type": "database" },
+    { "participant": "reviewer", "from": 212, "to": 254, "type": "external" },
+    { "participant": "verifier", "from": 280, "to": 348, "type": "security" },
+    { "participant": "checks", "from": 308, "to": 346, "type": "backend" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Declaration",
+      "items": [
+        "proposal.md and its SHA-256 digest are recorded before implementation",
+        "Intentional test changes are declared in the same revision",
+        "Scope globs can bound the diff when a change declares them"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Approval gate",
+      "items": [
+        "Required only when repository policy says so",
+        "The approval names the exact proposal digest",
+        "Editing the proposal invalidates the earlier approval"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Verification",
+      "items": [
+        "The verifier recomputes the digest before trusting anything",
+        "Protected test edits and undeclared paths fail closed",
+        "The baseline must be green at the change's base revision"
+      ]
+    }
+  ]
+}
