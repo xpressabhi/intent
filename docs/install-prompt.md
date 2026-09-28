@@ -10,14 +10,14 @@ Install the pinned Intent v1 bundle into the current repository so changes are r
 
 - The current working directory is inside the target Git repository.
 - macOS or Linux with POSIX `sh`. On Windows, use WSL or Git Bash.
-- Either a local Intent checkout path from the user, or network access to clone `https://github.com/OWNER/intent`.
+- Either a local Intent checkout path from the user, or network access to clone `https://github.com/xpressabhi/intent`.
 
 ## Steps
 
 1. Locate an Intent checkout. Use a local path when the user provides one. Otherwise clone into a temporary directory and keep that path:
    ```sh
    checkout=$(mktemp -d)/intent
-   git clone --depth 1 https://github.com/OWNER/intent "$checkout"
+   git clone --depth 1 https://github.com/xpressabhi/intent "$checkout"
    ```
 2. Inspect before writing. From the target repository root, run:
    ```sh
