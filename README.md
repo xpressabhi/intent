@@ -50,7 +50,7 @@ An adoption-ready repository has relevant project facts recorded in `.intent/PRO
 From inside the repository you want to adopt, paste this into Claude Code, OpenCode, or any agent with shell access:
 
 ```text
-Clone https://github.com/xpressabhi/intent to a temporary directory, read docs/install-prompt.md from the clone, and follow it to install Intent in this repository.
+Clone https://github.com/xpressabhi/intent with --depth 1 to a temporary directory, read docs/install-prompt.md from the clone, and follow it to install Intent in this repository.
 ```
 
 The prompt runs a dry run first, installs only on a clean preflight, completes `.intent/PROJECT.md` from repository evidence, and reports what is left. Save it as a slash command or skill if you install often.

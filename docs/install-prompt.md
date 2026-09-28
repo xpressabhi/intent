@@ -19,6 +19,7 @@ Install the pinned Intent v1 bundle into the current repository so changes are r
    checkout=$(mktemp -d)/intent
    git clone --depth 1 https://github.com/xpressabhi/intent "$checkout"
    ```
+   A shallow clone is enough: the installer reads only the current files, never history.
 2. Inspect before writing. From the target repository root, run:
    ```sh
    sh "$checkout/scripts/install.sh" --target . --dry-run
