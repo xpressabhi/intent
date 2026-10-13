@@ -1,0 +1,20 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install schema validation dependencies
+        run: python3 -m pip install --quiet pyyaml jsonschema
+      - name: Run test scripts
+        run: |
+          set -eu
+          for t in tests/*.sh; do
+            printf '\n== %s\n' "$t"
+            sh "$t"
+          done

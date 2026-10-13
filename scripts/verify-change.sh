@@ -6,12 +6,14 @@ usage() {
   cat <<'EOF'
 Usage: sh verify-change.sh --change DIR [--base REF] [--head REF]
                            [--command CMD] [--baseline] [--protected PATTERN]...
-                           [--root DIR]
+                           [--root DIR] [--strict] [--quiet]
 
-Verify an Intent change against its declarations and repository checks.
+Verify an Intent v2 change against its declarations and repository checks.
+A change record is a proposal.md holding YAML front matter and the intent
+body; the proposal digest covers the body only.
 
 Options:
-  --change DIR        Change directory containing change.yaml and proposal.md
+  --change DIR        Change directory containing proposal.md
                       (default: the only change record under .intent/changes/)
   --base REF          Revision the change starts from (default: HEAD)
   --head REF          Revision holding the change (default: the working tree)
@@ -19,7 +21,9 @@ Options:
   --baseline          Also require the command to pass at --base
   --protected PATTERN Protect matching paths (repeatable; overrides config policy)
   --root DIR          Repository root (default: Git root of the current directory)
-  --print-digest      Print the normalized proposal.md digest and exit
+  --strict            Fail when schema validation cannot run instead of skipping
+  --quiet             Suppress warnings
+  --print-digest      Print the body digest of proposal.md and exit
   --help              Show this help
 EOF
 }
@@ -31,6 +35,17 @@ fail() {
 
 say() {
   printf 'verify-change: %s\n' "$1"
+}
+
+warn() {
+  [ "$quiet" -eq 1 ] || printf 'verify-change: WARN: %s\n' "$1"
+}
+
+errors=0
+
+note_fail() {
+  printf 'verify-change: FAIL: %s\n' "$1"
+  errors=$((errors + 1))
 }
 
 default_protected='tests/**
@@ -50,6 +65,8 @@ root_arg=
 protected=
 protected_set=0
 print_digest=0
+strict=0
+quiet=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -77,20 +94,28 @@ while [ "$#" -gt 0 ]; do
       baseline=1
       shift
       ;;
-    --print-digest)
-      print_digest=1
-      shift
-      ;;
     --protected)
       [ "$#" -ge 2 ] || fail "--protected requires a pattern"
       protected="${protected}${protected:+ }$2"
       protected_set=1
       shift 2
       ;;
+    --strict)
+      strict=1
+      shift
+      ;;
+    --quiet)
+      quiet=1
+      shift
+      ;;
     --root)
       [ "$#" -ge 2 ] || fail "--root requires a directory"
       root_arg=$2
       shift 2
+      ;;
+    --print-digest)
+      print_digest=1
+      shift
       ;;
     --help|-h)
       usage
@@ -122,14 +147,13 @@ else
   change_dir=
   change_count=0
   for candidate in "$root"/.intent/changes/*/; do
-    [ -f "$candidate/change.yaml" ] || continue
+    [ -f "$candidate/proposal.md" ] || continue
     change_dir=${candidate%/}
     change_count=$((change_count + 1))
   done
   [ "$change_count" -eq 1 ] || fail "specify --change DIR: found $change_count change records under .intent/changes"
 fi
 [ -d "$change_dir" ] || fail "change directory does not exist: ${change_arg:-$change_dir}"
-change_yaml=$change_dir/change.yaml
 proposal=$change_dir/proposal.md
 [ -f "$proposal" ] || fail "missing proposal.md in ${change_arg:-$change_dir}"
 
@@ -145,59 +169,114 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-sha256_file() {
+sha256_stdin() {
   if command -v sha256sum >/dev/null 2>&1; then
-    tr -d '\r' < "$1" | sha256sum | awk '{print $1}'
+    sha256sum | awk '{print $1}'
   else
-    tr -d '\r' < "$1" | shasum -a 256 | awk '{print $1}'
+    shasum -a 256 | awk '{print $1}'
   fi
+}
+
+sha256_file() {
+  tr -d '\r' < "$1" | sha256_stdin
 }
 
 bom_present() {
   [ "$(head -c 3 "$1" | od -An -t x1 | tr -d ' \n')" = efbbbf ]
 }
 
-change_digest() {
+# Prints the line number where the body starts (the front matter ends at the
+# first line that is exactly `---` after line 1). Returns non-zero when the
+# file does not open with a front-matter block or never closes it.
+body_start_line() {
   awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+    }
+    NR == 1 {
+      if (line != "---") exit 5
+      next
+    }
+    line == "---" { print NR + 1; ok = 1; exit 0 }
+    END { if (!ok) exit 6 }
+  ' "$1"
+}
+
+# Prints the front-matter content lines, CR-stripped, without the delimiters.
+front_matter() {
+  start=$(body_start_line "$1") || return 1
+  awk -v last="$((start - 2))" 'NR >= 2 && NR <= last' "$1" | sed 's/\r$//'
+}
+
+# Prints the digest of the body bytes: everything after the front matter with
+# all CR bytes removed.
+body_digest() {
+  start=$(body_start_line "$1") || return 1
+  tail -n +"$start" "$1" | tr -d '\r' | sha256_stdin
+}
+
+# Top-level front-matter scalar: `key: value` at column 1.
+fm_scalar() {
+  awk -v key="$1" '
     { sub(/\r$/, "") }
-    /^proposal:/ { in_proposal = 1; next }
-    in_proposal && /^[^[:space:]]/ { in_proposal = 0 }
-    in_proposal && /^[[:space:]]+digest:/ {
+    index($0, key ":") == 1 {
       value = $0
-      sub(/^[[:space:]]+digest:[[:space:]]*/, "", value)
+      sub("^" key ":[[:space:]]*", "", value)
       gsub(/^"|"$/, "", value)
       print value
       exit
     }
-  ' "$1"
+  ' "$2"
 }
 
-test_change_paths() {
-  awk '
+# Scalar nested under the `proposal:` map (revision, digest).
+fm_proposal_value() {
+  awk -v key="$1" '
     { sub(/\r$/, "") }
-    /^test_changes:/ { in_list = 1; next }
-    in_list && /^[^[:space:]#]/ { in_list = 0 }
-    in_list && /^[[:space:]]*-[[:space:]]*path:/ {
+    /^proposal:/ { in_proposal = 1; next }
+    in_proposal && /^[^[:space:]]/ { in_proposal = 0 }
+    in_proposal && $0 ~ ("^[[:space:]]+" key ":[[:space:]]*") {
       value = $0
-      sub(/^[[:space:]]*-[[:space:]]*path:[[:space:]]*/, "", value)
+      sub("^[[:space:]]+" key ":[[:space:]]*", "", value)
       gsub(/^"|"$/, "", value)
       print value
+      exit
     }
-  ' "$1"
+  ' "$2"
 }
 
-scope_paths() {
-  awk '
+# List items nested under `SECTION:` then `KEY:` (e.g. scope.paths,
+# links.related).
+fm_section_list() {
+  awk -v section="$1" -v key="$2" '
     { sub(/\r$/, "") }
-    /^[a-z_]+:/ { in_scope = ($0 == "scope:") ? 1 : 0; in_paths = 0; next }
-    in_scope && /^[[:space:]]+paths:/ { in_paths = 1; next }
-    in_scope && in_paths && /^[[:space:]]*-[[:space:]]*/ {
+    $0 == section ":" { in_section = 1; in_list = 0; next }
+    in_section && /^[^[:space:]]/ { in_section = 0; in_list = 0 }
+    in_section && $0 ~ ("^[[:space:]]+" key ":[[:space:]]*$") { in_list = 1; next }
+    in_section && in_list && /^[[:space:]]*-[[:space:]]*/ {
       value = $0
       sub(/^[[:space:]]*-[[:space:]]*/, "", value)
       sub(/[[:space:]]*#.*/, "", value)
       gsub(/^"|"$/, "", value)
       if (value != "") print value
       next
+    }
+  ' "$3"
+}
+
+# Declared test_changes paths, in order.
+test_change_paths() {
+  awk '
+    { sub(/\r$/, "") }
+    /^test_changes:/ { in_list = 1; next }
+    in_list && /^[^[:space:]]/ { in_list = 0 }
+    in_list && /^[[:space:]]*-[[:space:]]*path:/ {
+      value = $0
+      sub(/^[[:space:]]*-[[:space:]]*path:[[:space:]]*/, "", value)
+      sub(/[[:space:]]*#.*/, "", value)
+      gsub(/^"|"$/, "", value)
+      if (value != "") print value
     }
   ' "$1"
 }
@@ -209,6 +288,23 @@ config_has_key() {
     /^[a-z_]+:/ { in_section = 0 }
     in_section && $0 ~ ("^[[:space:]]+" key ":") { found = 1 }
     END { print found + 0 }
+  ' "$1"
+}
+
+config_list() {
+  awk -v section="$2" -v key="$3" '
+    { sub(/\r$/, "") }
+    $0 == section ":" { in_section = 1; in_list = 0; next }
+    in_section && /^[a-z_]+:/ { in_section = 0; in_list = 0 }
+    in_section && $0 ~ ("^[[:space:]]+" key ":[[:space:]]*$") { in_list = 1; next }
+    in_section && in_list && /^[[:space:]]*-[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", value)
+      sub(/[[:space:]]*#.*/, "", value)
+      gsub(/^"|"$/, "", value)
+      if (value != "") print value
+      next
+    }
   ' "$1"
 }
 
@@ -289,19 +385,6 @@ config_authorized_reviewers() {
   ' "$1"
 }
 
-top_scalar() {
-  awk -v key="$2" '
-    { sub(/\r$/, "") }
-    index($0, key ":") == 1 {
-      value = $0
-      sub("^" key ":[[:space:]]*", "", value)
-      gsub(/^"|"$/, "", value)
-      print value
-      exit
-    }
-  ' "$1"
-}
-
 approved_reviews() {
   awk '
     { sub(/\r$/, "") }
@@ -331,15 +414,15 @@ approved_reviews() {
 }
 
 schema_validate() {
-  schema_dir=$root/.intent/schemas/v1
+  schema_dir=$root/.intent/schemas/v2
   [ -f "$schema_dir/change.schema.json" ] || return 2
   command -v python3 >/dev/null 2>&1 || return 2
   python3 -c 'import yaml, jsonschema' >/dev/null 2>&1 || return 2
   review_path=
-  [ -f "$change_dir/review.yaml" ] && review_path=$change_dir/review.yaml
+  if [ -f "$change_dir/review.yaml" ]; then review_path=$change_dir/review.yaml; fi
   config_path=
-  [ -f "$config" ] && config_path=$config
-  python3 - "$schema_dir" "$change_yaml" "$review_path" "$config_path" <<'PY'
+  if [ -f "$config" ]; then config_path=$config; fi
+  python3 - "$schema_dir" "$fm" "$review_path" "$config_path" <<'PY'
 import json
 import sys
 
@@ -368,7 +451,7 @@ def check(schema_name, target, label):
         raise SystemExit(2)
 
 
-check("change.schema.json", change_path, "change.yaml")
+check("change.schema.json", change_path, "proposal.md")
 check("review.schema.json", review_path, "review.yaml")
 check("config.schema.json", config_path, "config.yaml")
 raise SystemExit(1 if failed else 0)
@@ -405,16 +488,33 @@ run_verification() {
   fi
 }
 
+# A proposal without front matter has no digest to print; the whole file is
+# treated as the body so authors can bootstrap a record by writing the body
+# first and pasting the printed digest into new front matter.
 if [ "$print_digest" -eq 1 ]; then
-  printf 'sha256:%s\n' "$(sha256_file "$proposal")"
+  if start=$(body_start_line "$proposal"); then
+    printf 'sha256:%s\n' "$(tail -n +"$start" "$proposal" | tr -d '\r' | sha256_stdin)"
+  else
+    printf 'sha256:%s\n' "$(tr -d '\r' < "$proposal" | sha256_stdin)"
+  fi
   exit 0
 fi
 
-[ -f "$change_yaml" ] || fail "missing change.yaml in ${change_arg:-$change_dir}"
 git -C "$root" rev-parse --show-toplevel >/dev/null 2>&1 || fail "root is not inside a Git repository: $root"
 git -C "$root" rev-parse --verify "$base^{commit}" >/dev/null 2>&1 || fail "base revision not found: $base"
 if [ -n "$head_ref" ]; then
   git -C "$root" rev-parse --verify "$head_ref^{commit}" >/dev/null 2>&1 || fail "head revision not found: $head_ref"
+fi
+
+if bom_present "$proposal"; then
+  note_fail "proposal.md begins with a byte order mark"
+fi
+
+fm=$tmp/front-matter
+if start=$(body_start_line "$proposal"); then
+  front_matter "$proposal" > "$fm"
+else
+  fail "proposal.md is missing valid front matter: $proposal"
 fi
 
 patterns=$default_protected
@@ -434,35 +534,29 @@ if [ "$baseline" -eq 1 ] && [ -z "$command" ]; then
   fail "--baseline requires --command or policy.verify_command"
 fi
 
-errors=0
-note_fail() {
-  printf 'verify-change: FAIL: %s\n' "$1"
-  errors=$((errors + 1))
-}
-
-recorded=$(change_digest "$change_yaml")
+recorded=$(fm_proposal_value digest "$fm")
 if [ -z "$recorded" ]; then
-  note_fail "change.yaml does not record a proposal digest"
+  note_fail "change record does not provide a proposal digest"
 else
-  actual=sha256:$(sha256_file "$proposal")
-  if bom_present "$proposal"; then
-    note_fail "proposal.md contains a byte order mark"
-  fi
+  actual=sha256:$(body_digest "$proposal")
   if [ "$recorded" = "$actual" ]; then
-    say "proposal digest matches change.yaml"
+    say "proposal digest matches"
   else
-    note_fail "proposal digest mismatch: change.yaml records $recorded but proposal.md is $actual"
+    note_fail "proposal digest mismatch: front matter records $recorded but the body is $actual"
   fi
 fi
 
-status_value=$(top_scalar "$change_yaml" status)
-review_required_value=$(top_scalar "$change_yaml" review_required)
-protocol_value=$(top_scalar "$change_yaml" protocol_version)
-for field in protocol_version id title status created_at request proposal scope decisions review_required; do
-  grep -q "^$field:" "$change_yaml" || note_fail "change.yaml is missing required field: $field"
+status_value=$(fm_scalar status "$fm")
+review_required_value=$(fm_scalar review_required "$fm")
+protocol_value=$(fm_scalar protocol_version "$fm")
+for field in protocol_version id title status created_at request review_required; do
+  grep -q "^$field:" "$fm" || note_fail "record is missing required field: $field"
 done
-[ "$protocol_value" = "1.0" ] || note_fail "unsupported protocol_version: ${protocol_value:-<missing>}"
-case " draft in_review changes_requested rejected approved implementing conformance_review complete " in
+grep -q '^proposal:' "$fm" || note_fail "record is missing required field: proposal"
+[ -n "$(fm_proposal_value revision "$fm")" ] || note_fail "proposal is missing required field: revision"
+[ -n "$(fm_proposal_value digest "$fm")" ] || note_fail "proposal is missing required field: digest"
+[ "$protocol_value" = "2.0" ] || note_fail "unsupported protocol_version: ${protocol_value:-<missing>}"
+case " draft in_review changes_requested rejected approved implementing conformance_review complete withdrawn " in
   *" $status_value "*) ;;
   *) note_fail "unknown change status: ${status_value:-<missing>}" ;;
 esac
@@ -549,7 +643,7 @@ while IFS="$(printf '\t')" read -r status path; do
   esac
 done < "$raw"
 
-scope_patterns=$(scope_paths "$change_yaml")
+scope_patterns=$(fm_section_list scope paths "$fm")
 if [ -n "$scope_patterns" ]; then
   outside_scope=0
   while IFS= read -r path; do
@@ -567,7 +661,7 @@ if [ -n "$scope_patterns" ]; then
 fi
 
 test_change_list=$tmp/test-changes
-test_change_paths "$change_yaml" > "$test_change_list"
+test_change_paths "$fm" > "$test_change_list"
 if [ -n "$patterns" ]; then
   while IFS= read -r path; do
     case $path in .intent/*) continue ;; esac
@@ -576,11 +670,8 @@ if [ -n "$patterns" ]; then
       case $path in $pattern) match=1; break ;; esac
     done
     [ "$match" -eq 1 ] || continue
-    if ! grep -Fq -- "$path" "$proposal"; then
-      note_fail "protected path changed but not declared in the proposal: $path"
-    fi
     if ! grep -Fqx -- "$path" "$test_change_list"; then
-      note_fail "protected path changed but missing from change.yaml test_changes: $path"
+      note_fail "protected path changed but missing from test_changes: $path"
     fi
   done < "$changed_declared"
 fi
@@ -591,8 +682,8 @@ while IFS= read -r path; do
   case $path in .intent/*) continue ;; esac
   file_diff "$path" > "$tmp/file-diff" || true
   if grep -Eq -- "$weaken_re" "$tmp/file-diff" || grep -Eq -- "$skip_re" "$tmp/file-diff"; then
-    if ! grep -Fq -- "$path" "$proposal"; then
-      note_fail "test definition removed or skipped but not declared in the proposal: $path"
+    if ! grep -Fqx -- "$path" "$test_change_list"; then
+      note_fail "test definition removed or skipped but not declared in test_changes: $path"
     fi
   fi
 done < "$changed_declared"

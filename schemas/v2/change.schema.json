@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Intent change record v2 (proposal.md front matter)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "id",
+    "title",
+    "status",
+    "created_at",
+    "request",
+    "proposal",
+    "review_required"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "2.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "in_review",
+        "changes_requested",
+        "rejected",
+        "approved",
+        "implementing",
+        "conformance_review",
+        "complete",
+        "withdrawn"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "request": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One line: the requested observable outcome."
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "digest"],
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "SHA-256 of the body bytes (after the front matter) with all CR bytes removed."
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Optional path globs the change may touch; when present, verification rejects undeclared paths."
+        }
+      }
+    },
+    "test_changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "reason"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact path or glob of a pre-existing test the change edits, deletes, or skips."
+          },
+          "kind": {
+            "enum": ["added", "modified", "deleted", "skipped"],
+            "description": "Documentation of the expected edit; verification matches paths."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "related": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Change IDs whose decisions or context this change depends on."
+        },
+        "supersedes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Change IDs this change replaces or re-opens."
+        },
+        "decisions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Project decision IDs (DEC-*) that constrain this change."
+        }
+      }
+    },
+    "review_required": {
+      "type": "boolean",
+      "default": false,
+      "description": "True only while a material human decision or repository approval is required."
+    }
+  }
+}
