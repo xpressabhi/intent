@@ -1,0 +1,48 @@
+name: Intent verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the base revision
+        id: base
+        run: |
+          set -eu
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            before='${{ github.event.before }}'
+            case "$before" in
+              ''|0000000000000000000000000000000000000000)
+                echo "ref=HEAD^" >> "$GITHUB_OUTPUT" ;;
+              *)
+                echo "ref=$before" >> "$GITHUB_OUTPUT" ;;
+            esac
+          fi
+
+      - name: Install schema validation dependencies
+        run: python3 -m pip install --quiet pyyaml jsonschema
+
+      - name: Check record coverage
+        id: coverage
+        run: |
+          set -eu
+          out=$(sh .intent/scripts/verify-records.sh --base "${{ steps.base.outputs.ref }}")
+          printf '%s\n' "$out"
+          dir=$(printf '%s\n' "$out" | sed -n 's/^verify-records: record //p')
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the change record
+        if: steps.coverage.outputs.dir != ''
+        run: sh .intent/scripts/verify-change.sh --change "${{ steps.coverage.outputs.dir }}" --base "${{ steps.base.outputs.ref }}" --strict

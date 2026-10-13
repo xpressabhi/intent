@@ -4,16 +4,21 @@ set -eu
 
 usage() {
   cat <<'EOF'
-Usage: sh /path/to/intent/scripts/install.sh [--target DIR] [--reviewer ID]... [--dry-run] [--upgrade]
+Usage: sh /path/to/intent/scripts/install.sh [--target DIR] [--reviewer ID]...
+                                                [--dry-run] [--upgrade] [--ci]
 
-Install the version-pinned Intent v1 guidance bundle into a Git repository.
+Install the version-pinned Intent v2 guidance bundle into a Git repository.
 
 Options:
   --target DIR    Repository or directory inside the target Git repository
   --reviewer ID   Add an explicit reviewer alongside CODEOWNERS owners (repeatable)
   --dry-run       Validate and report planned changes without writing
   --upgrade       Replace managed files from the pinned bundle; config.yaml and PROJECT.md stay unchanged
+  --ci            Install .github/workflows/intent-verify.yml when it is absent
   --help          Show this help
+
+Repositories still on Intent protocol 1.0 migrate first with
+scripts/migrate-v1.sh; this installer refuses them.
 EOF
 }
 
@@ -37,6 +42,7 @@ target_arg=
 target_set=0
 dry_run=0
 upgrade=0
+ci=0
 reviewers=
 reviewer_count=0
 
@@ -69,6 +75,10 @@ while [ "$#" -gt 0 ]; do
       upgrade=1
       shift
       ;;
+    --ci)
+      ci=1
+      shift
+      ;;
     --help|-h)
       usage
       exit 0
@@ -79,19 +89,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd -P) || fail "cannot locate installer directory"
-intent_root=$(CDPATH= cd "$script_dir/.." && pwd -P) || fail "cannot locate Intent repository"
-
-bundle_source() {
-  rel=$1
-  rest=${rel#.intent/}
-  if [ -f "$intent_root/install/templates/.intent/$rest" ]; then
-    printf '%s\n' "$intent_root/install/templates/.intent/$rest"
-  elif [ -f "$intent_root/$rest" ]; then
-    printf '%s\n' "$intent_root/$rest"
-  else
-    return 1
-  fi
-}
+[ -f "$script_dir/lib-bundle.sh" ] || fail "cannot locate scripts/lib-bundle.sh"
+. "$script_dir/lib-bundle.sh"
 
 if [ "$target_set" -eq 1 ]; then
   [ -d "$target_arg" ] || fail "target directory does not exist: $target_arg"
@@ -100,6 +99,11 @@ else
   target_root=$(git rev-parse --show-toplevel 2>/dev/null) || fail "current directory is not inside a Git repository; use --target DIR"
 fi
 target_root=$(CDPATH= cd "$target_root" && pwd -P) || fail "cannot resolve target Git root"
+
+if [ -f "$target_root/.intent/config.yaml" ] &&
+  grep -Eq '^protocol_version:[[:space:]]*"?1\.0"?[[:space:]]*$' "$target_root/.intent/config.yaml"; then
+  fail "target uses Intent protocol 1.0; migrate with scripts/migrate-v1.sh"
+fi
 
 codeowners_path=
 for candidate in "$target_root/.github/CODEOWNERS" "$target_root/CODEOWNERS" "$target_root/docs/CODEOWNERS"; do
@@ -135,22 +139,9 @@ if [ -n "$codeowners_path" ]; then
   done
 fi
 
-relpaths='.intent/config.yaml
-.intent/README.md
-.intent/PROJECT.md
-.intent/AGENT_GUIDE.md
-.intent/decisions/README.md
-.intent/changes/TEMPLATE/change.yaml.tmpl
-.intent/changes/TEMPLATE/proposal.md
-.intent/changes/TEMPLATE/review.yaml.tmpl
-.intent/changes/TEMPLATE/conformance.md
-.intent/protocol/v1.md
-.intent/schemas/v1/config.schema.json
-.intent/schemas/v1/change.schema.json
-.intent/schemas/v1/review.schema.json
-.intent/scripts/verify-change.sh'
-
-printf '%s\n' "$relpaths" > "$stage/manifest"
+manifest=$intent_root/install/manifest.txt
+[ -f "$manifest" ] || fail "cannot locate install/manifest.txt"
+cp "$manifest" "$stage/manifest"
 
 while IFS= read -r rel; do
   [ -n "$rel" ] || continue
@@ -162,7 +153,7 @@ done < "$stage/manifest"
 
 if [ ! -e "$target_root/.intent/config.yaml" ] && [ ! -L "$target_root/.intent/config.yaml" ]; then
   {
-    printf 'protocol_version: "1.0"\nreview:\n  required: false\n  authorized_reviewers:'
+    printf 'protocol_version: "2.0"\nreview:\n  required: false\n  authorized_reviewers:'
     if [ "$reviewer_count" -eq 0 ]; then
       printf ' [] # TODO: add authorized reviewers before enabling approval gates\n'
     else
@@ -172,8 +163,28 @@ if [ ! -e "$target_root/.intent/config.yaml" ] && [ ! -L "$target_root/.intent/c
     printf 'policy:\n  protected_paths:\n'
     printf '    - "tests/**"\n    - "test/**"\n    - "spec/**"\n'
     printf '    - "**/*.test.*"\n    - "**/*.spec.*"\n    - "**/*_test.*"\n    - "**/test_*.py"\n'
-    printf '  verify_command: ""\n  require_baseline: false\n'
+    printf '  verify_command: ""\n  require_baseline: false\n  warn_unused_paths: true\n'
+    printf '  record_exempt_paths:\n    - "docs/**"\n    - "**/*.md"\n    - ".intent/**"\n'
   } > "$stage/bundle/.intent/config.yaml"
+fi
+
+ci_rel=.github/workflows/intent-verify.yml
+ci_action=none
+ci_dest=$target_root/$ci_rel
+if [ "$ci" -eq 1 ]; then
+  ci_src=$(bundle_source "$ci_rel") || fail "cannot locate bundle source for $ci_rel"
+  cp "$ci_src" "$stage/ci-workflow"
+  if [ -L "$ci_dest" ]; then fail "symlinked managed file: $ci_rel"; fi
+  if [ -e "$ci_dest" ]; then
+    [ -f "$ci_dest" ] || fail "managed destination is not a regular file: $ci_rel"
+    if cmp -s "$stage/ci-workflow" "$ci_dest"; then
+      ci_action=keep
+    else
+      fail "managed file differs from installer template: $ci_rel (preserved; resolve manually)"
+    fi
+  else
+    ci_action=create
+  fi
 fi
 
 check_directory() {
@@ -198,7 +209,7 @@ upgrade_pending() {
   upgrade_replaces "$rel"
 }
 
-for dir in .intent .intent/protocol .intent/schemas .intent/schemas/v1 .intent/decisions .intent/changes .intent/changes/TEMPLATE .intent/scripts; do
+for dir in .intent .intent/protocol .intent/schemas .intent/schemas/v2 .intent/decisions .intent/changes .intent/changes/TEMPLATE .intent/scripts; do
   check_directory "$target_root/$dir"
 done
 
@@ -285,6 +296,12 @@ if [ "$dry_run" -eq 1 ]; then
       say "keep existing $rel"
     fi
   done < "$stage/manifest"
+  if [ "$ci" -eq 1 ]; then
+    case $ci_action in
+      create) say "create $ci_rel" ;;
+      keep) say "keep existing $ci_rel" ;;
+    esac
+  fi
   [ "$agents_action" = unchanged ] || say "update managed section of AGENTS.md"
   say "dry run complete; no repository files were changed"
   exit 0
@@ -303,9 +320,14 @@ while IFS= read -r rel; do
     say "replaced $rel"
   fi
 done < "$stage/manifest"
+if [ "$ci" -eq 1 ] && [ "$ci_action" = create ]; then
+  mkdir -p "$(dirname "$ci_dest")"
+  cp "$stage/ci-workflow" "$ci_dest"
+  say "created $ci_rel"
+fi
 if [ "$agents_action" = update ]; then cp "$agents_plan" "$agents"; say "updated managed section of AGENTS.md"; fi
 
-say "installed Intent protocol 1.0 in $target_root"
+say "installed Intent protocol 2.0 in $target_root"
 if [ "$config_was_present" -eq 1 ]; then say "preserved existing .intent/config.yaml; CODEOWNERS and supplied reviewer IDs were not applied"; fi
 if [ "$reviewer_count" -eq 0 ]; then say "TODO: no CODEOWNERS owners found; add authorized reviewers before enabling approval gates"; fi
 say "complete .intent/PROJECT.md; approval remains disabled by default"

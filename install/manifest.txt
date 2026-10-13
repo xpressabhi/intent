@@ -1,0 +1,14 @@
+.intent/config.yaml
+.intent/README.md
+.intent/PROJECT.md
+.intent/AGENT_GUIDE.md
+.intent/decisions/README.md
+.intent/changes/TEMPLATE/proposal.md
+.intent/changes/TEMPLATE/conformance.md
+.intent/changes/TEMPLATE/review.yaml.tmpl
+.intent/protocol/v2.md
+.intent/schemas/v2/config.schema.json
+.intent/schemas/v2/change.schema.json
+.intent/schemas/v2/review.schema.json
+.intent/scripts/verify-change.sh
+.intent/scripts/verify-records.sh
