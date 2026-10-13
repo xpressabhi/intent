@@ -25,7 +25,7 @@
     { "id": "declare-delta", "from": "agent", "to": "records", "y": 188, "label": "scope, preserved, test changes", "variant": "default" },
     { "id": "request-approval", "from": "agent", "to": "reviewer", "y": 218, "label": "request approval", "variant": "security" },
     { "id": "approval-evidence", "from": "reviewer", "to": "records", "y": 248, "label": "approval names revision digest", "variant": "security" },
-    { "id": "read-record", "from": "verifier", "to": "records", "y": 286, "label": "read change.yaml + review.yaml", "variant": "default" },
+    { "id": "read-record", "from": "verifier", "to": "records", "y": 286, "label": "read the record + review.yaml", "variant": "default" },
     { "id": "run-checks", "from": "verifier", "to": "checks", "y": 314, "label": "run baseline + change", "variant": "emphasis" },
     { "id": "checks-green", "from": "checks", "to": "verifier", "y": 342, "label": "exit 0", "variant": "return" },
     { "id": "conformance", "from": "agent", "to": "records", "y": 372, "label": "conformance.md", "variant": "return" }

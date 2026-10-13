@@ -230,18 +230,18 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
         </div>
       </div>
       <figure class="hero-figure" data-sequence data-reveal>
-        <svg viewBox="0 0 620 260" role="img" aria-label="Diagram: proposal.md is hashed, the digest is recorded in change.yaml and review.yaml, and the verifier checks all three.">
+        <svg viewBox="0 0 620 260" role="img" aria-label="Diagram: the proposal body is hashed, the digest is recorded in proposal.md's front matter and review.yaml, and the verifier checks all of them.">
           <rect class="dg-box" x="14" y="24" width="172" height="72" rx="10"/>
           <text class="dg-t" x="34" y="52">proposal.md</text>
-          <text class="dg-s" x="34" y="74">the intent, as bytes</text>
+          <text class="dg-s" x="34" y="74">the body, as bytes</text>
           <path class="dg-line draw" d="M186 60 H 226" marker-end="url(#arrow)"/>
           <rect class="dg-box box-hl" x="226" y="32" width="152" height="56" rx="10"/>
           <text class="dg-t" x="246" y="52">sha256</text>
           <text class="dg-t scramble" data-scramble x="246" y="72">9f3c…7a2e</text>
           <path class="dg-line draw" style="transition-delay:.18s" d="M378 60 H 406 M 406 38 V 114 M 406 38 H 436 M 406 114 H 436" marker-end="url(#arrow)"/>
           <rect class="dg-box" x="436" y="12" width="170" height="52" rx="10"/>
-          <text class="dg-t" x="454" y="30">change.yaml</text>
-          <text class="dg-s" x="454" y="48">digest</text>
+          <text class="dg-t" x="454" y="30">front matter</text>
+          <text class="dg-s" x="454" y="48">digest, scope, links</text>
           <rect class="dg-box" x="436" y="90" width="170" height="52" rx="10"/>
           <text class="dg-t" x="454" y="108">review.yaml</text>
           <text class="dg-s" x="454" y="126">proposal_digest</text>
@@ -324,8 +324,8 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
         <h2>Every claim is checked against the repository</h2>
         <p class="section-lede">The verifier reads the change record and the diff, then reports each unmet rule instead of passing quietly.</p>
         <ul class="checks" data-reveal>
-          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Proposal digest matches</strong><span>SHA-256 over proposal.md bytes, compared to the recorded digest.</span></span></li>
-          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Test changes are declared</strong><span>Every modified, skipped, or deleted test appears in the proposal and in test_changes.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Proposal digest matches</strong><span>SHA-256 over the proposal body, compared to the front-matter digest.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Test changes are declared</strong><span>Every modified, skipped, or deleted test appears in test_changes, as an exact path or a glob.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Protected paths stay intact</strong><span>Test paths are protected by default and configurable per repository.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Scope containment</strong><span>When the change declares path globs, edits outside them fail.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Approval is bound</strong><span>When policy requires review, an approval must name the current digest and an authorized reviewer.</span></span></li>
@@ -334,12 +334,12 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
       </div>
       <div data-reveal>
         <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-change.sh --change .intent/changes/CHG-0007 --base origin/main</span>
-verify-change: proposal digest matches change.yaml
-<span class="bad">verify-change: FAIL: protected path changed but not declared in the proposal: tests/export_test.py</span>
+verify-change: proposal digest matches
+<span class="bad">verify-change: FAIL: protected path changed but missing from test_changes: tests/export_test.py</span>
 <span class="bad">verify-change: FAIL: approval evidence for the current proposal digest is missing</span>
 verify-change: 2 check(s) failed</pre>
-        <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-change.sh --change .intent/changes/CHG-0007 --base origin/main --command 'make test'</span>
-verify-change: proposal digest matches change.yaml
+        <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-change.sh --change .intent/changes/CHG-0007 --base origin/main --command 'make test' --strict</span>
+verify-change: proposal digest matches
 verify-change: changed paths are within declared scope
 verify-change: change verification command passed
 <span class="ok">verify-change: change verified: .intent/changes/CHG-0007</span></pre>
@@ -356,13 +356,13 @@ verify-change: change verification command passed
   <section class="section section-alt" id="digest">
     <div class="wrap">
       <h2>Approval binds to the proposal digest</h2>
-      <p class="section-lede">An approval names the SHA-256 of proposal.md. Edit the proposal after approval and the digest stops matching, so the old approval no longer opens the gate.</p>
+      <p class="section-lede">An approval names the SHA-256 of the proposal body. Edit the body after approval and the digest stops matching, so the old approval no longer opens the gate.</p>
       <figure class="diagram" data-sequence data-reveal>
-        <svg viewBox="0 0 760 280" role="img" aria-label="Diagram: proposal.md is hashed once, and the same digest must appear in change.yaml, review.yaml, and the approval evidence.">
+        <svg viewBox="0 0 760 280" role="img" aria-label="Diagram: the proposal body is hashed once, and the same digest must appear in proposal.md's front matter, review.yaml, and the approval evidence.">
           <g data-step>
             <rect class="dg-box" x="20" y="100" width="190" height="80" rx="10"/>
             <text class="dg-t" x="42" y="130">proposal.md</text>
-            <text class="dg-s" x="42" y="152">the reviewed bytes</text>
+            <text class="dg-s" x="42" y="152">the reviewed body</text>
           </g>
           <path class="dg-line draw" data-step d="M210 140 H 248" marker-end="url(#arrow4)"/>
           <g data-step>
@@ -373,7 +373,7 @@ verify-change: change verification command passed
           <path class="dg-line draw" data-step d="M424 140 H 470 M 470 42 V 238 M 470 42 H 548 M 470 140 H 548 M 470 238 H 548" marker-end="url(#arrow4)"/>
           <g data-step>
             <rect class="dg-box" x="548" y="18" width="192" height="48" rx="10"/>
-            <text class="dg-t" x="568" y="34">change.yaml</text>
+            <text class="dg-t" x="568" y="34">front matter</text>
             <text class="dg-s" x="568" y="52">digest: sha256:…</text>
           </g>
           <g data-step>
@@ -410,20 +410,20 @@ verify-change: change verification command passed
       <div class="prose" data-reveal>
         <h2>Records live in your repository</h2>
         <p>No central service. The protocol, schemas, verifier, decision log, and every change record live in .intent/ and travel with the code.</p>
-        <p>The installer pins the versions your records were written under. Upgrading is a deliberate reinstall with --upgrade, and existing configuration and project facts are preserved.</p>
+        <p>The installer pins the versions your records were written under. Upgrading between v2 pins is a deliberate reinstall with --upgrade; protocol 1.0 repositories migrate once with scripts/migrate-v1.sh, which preserves digests and approvals.</p>
       </div>
       <pre class="tree" data-reveal><span class="d">.intent/</span>
   config.yaml            <span class="c"># policy, reviewers, protected paths</span>
   PROJECT.md             <span class="c"># repo facts, build and test commands</span>
   decisions/             <span class="c"># durable rationale across changes</span>
   changes/CHG-0007/
-    proposal.md          <span class="c"># the intent, digest bound</span>
-    change.yaml          <span class="c"># state, scope, digest, test changes</span>
+    proposal.md          <span class="c"># front matter + intent body, digest bound</span>
     review.yaml          <span class="c"># approval evidence, when required</span>
     conformance.md       <span class="c"># verification record</span>
-  protocol/v1.md         <span class="c"># pinned contract</span>
-  schemas/v1/            <span class="c"># machine-checkable rules</span>
+  protocol/v2.md         <span class="c"># pinned contract</span>
+  schemas/v2/            <span class="c"># machine-checkable rules</span>
   scripts/verify-change.sh
+  scripts/verify-records.sh
 AGENTS.md                <span class="c"># managed guidance block</span></pre>
     </div>
   </section>
@@ -465,8 +465,8 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
   <div class="wrap footer-in">
     <span class="fine">Intent protocol 1.0, draft. MIT licensed.</span>
     <nav class="foot-links" aria-label="Repository">
-      <a href="https://github.com/xpressabhi/intent/blob/main/protocol/v1.md">Protocol</a>
-      <a href="https://github.com/xpressabhi/intent/tree/main/schemas/v1">Schemas</a>
+      <a href="https://github.com/xpressabhi/intent/blob/main/protocol/v2.md">Protocol</a>
+      <a href="https://github.com/xpressabhi/intent/tree/main/schemas/v2">Schemas</a>
       <a href="https://github.com/xpressabhi/intent/blob/main/scripts/verify-change.sh">Verifier</a>
       <a href="https://github.com/xpressabhi/intent/blob/main/scripts/install.sh">Installer</a>
       <a href="https://github.com/xpressabhi/intent/blob/main/LICENSE">License</a>
