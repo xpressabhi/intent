@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Intent: keep old behavior intact while AI changes your code</title>
-<meta name="description" content="A repo-owned protocol and verifier for agent-driven changes. Declared scope, protected tests, digest-bound approvals, and a green baseline.">
+<meta name="description" content="A repo-owned protocol and tooling for agent-driven changes. A record for every code change, declared scope, protected tests, digest-bound approvals, and a green baseline.">
 <meta name="theme-color" content="#f3f4ec">
 <meta property="og:title" content="Intent: keep old behavior intact while AI changes your code">
-<meta property="og:description" content="A repo-owned protocol and verifier for agent-driven changes. Declared scope, protected tests, digest-bound approvals, and a green baseline.">
+<meta property="og:description" content="A repo-owned protocol and tooling for agent-driven changes. A record for every code change, declared scope, protected tests, digest-bound approvals, and a green baseline.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d7a5c'/%3E%3Cpath d='M9 17l5 5 9-11' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <script>document.documentElement.classList.add('js');</script>
@@ -223,7 +223,7 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
     <div class="wrap hero-grid">
       <div data-reveal>
         <h1>AI edits fast. Old behavior still holds.</h1>
-        <p class="lede">A repo-owned protocol and verifier for agent-driven changes. Every change declares what it preserves, and the baseline stays green.</p>
+        <p class="lede">A repo-owned protocol and verifier for agent-driven changes. Every code change carries a record, declares what it preserves, and the baseline stays green.</p>
         <div class="cta-row">
           <a class="btn btn-primary" href="https://github.com/xpressabhi/intent">View on GitHub</a>
           <a class="btn btn-ghost" href="#install">Install in a repo</a>
@@ -314,6 +314,7 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
         <li><strong>Draft to implementing.</strong> Concise scope and verification are recorded, then work starts. No approval ceremony by default.</li>
         <li><strong>The review gate is conditional.</strong> Material ambiguity or repository policy pauses only the work that depends on the answer.</li>
         <li><strong>Close with evidence.</strong> A conformance record states outcomes, deviations, and verification; a complete change must include it.</li>
+        <li><strong>Nothing vanishes silently.</strong> Work that will not ship keeps a short withdrawn record, and ids are never reused.</li>
       </ul>
     </div>
   </section>
@@ -322,17 +323,21 @@ html.reduced .draw { stroke-dashoffset: 0 !important; }
     <div class="wrap verify-grid">
       <div>
         <h2>Every claim is checked against the repository</h2>
-        <p class="section-lede">The verifier reads the change record and the diff, then reports each unmet rule instead of passing quietly.</p>
+        <p class="section-lede">The coverage gate requires a record for every code change; the verifier reads that record and the diff, then reports each unmet rule instead of passing quietly.</p>
         <ul class="checks" data-reveal>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Every code change carries a record</strong><span>The coverage gate fails a range that touches non-documentation paths without exactly one record; docs-only changes pass, and an Intent-Skip trailer is the auditable escape.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Proposal digest matches</strong><span>SHA-256 over the proposal body, compared to the front-matter digest.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Test changes are declared</strong><span>Every modified, skipped, or deleted test appears in test_changes, as an exact path or a glob.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Protected paths stay intact</strong><span>Test paths are protected by default and configurable per repository.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Scope containment</strong><span>When the change declares path globs, edits outside them fail.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Approval is bound</strong><span>When policy requires review, an approval must name the current digest and an authorized reviewer.</span></span></li>
           <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Baseline stays green</strong><span>The repository check runs at the change and at its base revision.</span></span></li>
+          <li><svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 11l4 4 8-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Checks cannot silently skip</strong><span>With --strict, missing schema-validation tooling fails the run instead of warning.</span></span></li>
         </ul>
       </div>
       <div data-reveal>
+        <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-records.sh --base origin/main</span>
+verify-records: record .intent/changes/CHG-0007</pre>
         <pre class="terminal"><span class="dim">$ sh .intent/scripts/verify-change.sh --change .intent/changes/CHG-0007 --base origin/main</span>
 verify-change: proposal digest matches
 <span class="bad">verify-change: FAIL: protected path changed but missing from test_changes: tests/export_test.py</span>
@@ -434,9 +439,9 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
         <h2>Install once, verify in CI</h2>
         <p class="section-lede">The installer writes only its marked sections and never stages or commits anything. Approval stays off until policy turns it on.</p>
         <ol class="steps" data-reveal>
-          <li><span><strong>Install the pinned bundle</strong> into any Git repository on macOS or Linux.</span></li>
+          <li><span><strong>Install the pinned bundle</strong> into any Git repository on macOS or Linux; --ci also writes the reference workflow.</span></li>
           <li><span><strong>Set policy.verify_command</strong> in .intent/config.yaml so checks run without flags.</span></li>
-          <li><span><strong>Run the verifier in CI</strong> against the change's base revision, with the baseline required.</span></li>
+          <li><span><strong>Gate and verify in CI</strong> against the change's base revision: one record required, every declared rule checked.</span></li>
         </ol>
         <p class="section-lede">Or hand it to your agent: the <a href="install-prompt.md">install prompt</a> runs the dry run first, then installs and completes the project facts.</p>
       </div>
@@ -446,11 +451,15 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
           <pre class="code-block">sh scripts/install.sh --target /path/to/your/repo</pre>
         </div>
         <div>
-          <div class="code-label">Verify in CI</div>
-          <pre class="code-block">sh .intent/scripts/verify-change.sh \
+          <div class="code-label">Migrate from v1</div>
+          <pre class="code-block">sh scripts/migrate-v1.sh --target /path/to/your/repo</pre>
+        </div>
+        <div>
+          <div class="code-label">Gate and verify in CI</div>
+          <pre class="code-block">sh .intent/scripts/verify-records.sh --base origin/main
+sh .intent/scripts/verify-change.sh \
   --change .intent/changes/CHG-0007 \
-  --base origin/main \
-  --command 'make test' --baseline</pre>
+  --base origin/main --strict</pre>
         </div>
         <div>
           <div class="code-label">Agent prompt</div>
@@ -463,12 +472,14 @@ AGENTS.md                <span class="c"># managed guidance block</span></pre>
 
 <footer class="footer">
   <div class="wrap footer-in">
-    <span class="fine">Intent protocol 1.0, draft. MIT licensed.</span>
+    <span class="fine">Intent protocol 2.0, draft. MIT licensed.</span>
     <nav class="foot-links" aria-label="Repository">
       <a href="https://github.com/xpressabhi/intent/blob/main/protocol/v2.md">Protocol</a>
       <a href="https://github.com/xpressabhi/intent/tree/main/schemas/v2">Schemas</a>
       <a href="https://github.com/xpressabhi/intent/blob/main/scripts/verify-change.sh">Verifier</a>
+      <a href="https://github.com/xpressabhi/intent/blob/main/scripts/verify-records.sh">Coverage gate</a>
       <a href="https://github.com/xpressabhi/intent/blob/main/scripts/install.sh">Installer</a>
+      <a href="https://github.com/xpressabhi/intent/blob/main/scripts/migrate-v1.sh">Migrator</a>
       <a href="https://github.com/xpressabhi/intent/blob/main/LICENSE">License</a>
     </nav>
     <p class="projects-bar">More by Abhishek Maurya · <a href="https://xpressabhi.github.io/ordo/" style="color:var(--accent, inherit)">ordo</a> · <a href="https://xpressabhi.github.io/jev-browser/" style="color:var(--accent, inherit)">jev-browser</a> · <a href="https://xpressabhi.github.io/job-search-skills/" style="color:var(--accent, inherit)">job-search-skills</a> · <span aria-current="page">intent</span> · <a href="https://xpressabhi.github.io/job-radar/" style="color:var(--accent, inherit)">job-radar</a> · <a href="https://xpressabhi.github.io/tutor/" style="color:var(--accent, inherit)">tutor</a> · <a href="https://xpressabhi.github.io/#projects" style="color:var(--accent, inherit)">portfolio →</a></p>
