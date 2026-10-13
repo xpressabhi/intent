@@ -105,6 +105,24 @@ expect_pass_in() {
   fi
 }
 
+expect_pass_with_output() {
+  desc=$1
+  needle=$2
+  shift 2
+  if run_verifier "$@"; then :; else fail "$desc (expected pass; output: $(cat "$temp_root/out"))"; fi
+  grep -Fq -- "$needle" "$temp_root/out" || fail "$desc (missing output '$needle'; output: $(cat "$temp_root/out"))"
+  pass "$desc"
+}
+
+expect_pass_without_output() {
+  desc=$1
+  needle=$2
+  shift 2
+  if run_verifier "$@"; then :; else fail "$desc (expected pass; output: $(cat "$temp_root/out"))"; fi
+  if grep -Fq -- "$needle" "$temp_root/out"; then fail "$desc (unexpected output '$needle'; output: $(cat "$temp_root/out"))"; fi
+  pass "$desc"
+}
+
 declared_test_changes='test_changes:
   - path: "tests/test_app.py"
     kind: modified
@@ -286,6 +304,102 @@ Test changes: tests/test_app.py updated.' "$declared_test_changes" '  paths:
 printf 'def test_existing():\n    assert app() == 2\n' > "$repo/tests/test_app.py"
 printf 'def app():\n    return 2\n' > "$repo/src/app.py"
 expect_fail 'path outside declared scope fails' 'tests/test_app.py' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# The scope check treats declared globs literally even when the verifier's
+# working directory holds matching paths (the v1 pathname-expansion bug).
+repo=$temp_root/scope-cwd
+new_fixture "$repo"
+mkdir -p "$repo/src/lib"
+printf 'def deep():\n    return 1\n' > "$repo/src/lib/deep.py"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm deep
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Nested change.' 'test_changes: []' '  paths:
+    - "src/**"'
+printf 'def deep():\n    return 2\n' > "$repo/src/lib/deep.py"
+expect_pass_in 'declared glob stays literal with the CWD inside the repo' "$repo" --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# A match-everything declaration passes and covers nested paths.
+repo=$temp_root/scope-all
+new_fixture "$repo"
+mkdir -p "$repo/src/lib"
+printf 'def deep():\n    return 1\n' > "$repo/src/lib/deep.py"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm deep
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Nested change.' 'test_changes: []' '  paths:
+    - "**/*"'
+printf 'def deep():\n    return 2\n' > "$repo/src/lib/deep.py"
+expect_pass 'match-everything declaration passes' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# A changed path with spaces is matched and reported intact.
+repo=$temp_root/scope-space
+new_fixture "$repo"
+make_change "$repo" 'Docs change.' 'test_changes: []' '  paths:
+    - "docs/**"'
+mkdir -p "$repo/docs"
+printf 'notes\n' > "$repo/docs/my notes.md"
+expect_pass 'in-scope path with a space passes' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/scope-space-fail
+new_fixture "$repo"
+make_change "$repo" 'Docs change.' 'test_changes: []' '  paths:
+    - "docs/**"'
+mkdir -p "$repo/other"
+printf 'notes\n' > "$repo/other/my file.txt"
+expect_fail 'out-of-scope path with a space is reported intact' 'other/my file.txt' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# A declared glob that matched nothing warns.
+repo=$temp_root/unused-glob
+new_fixture "$repo"
+make_change "$repo" 'Source change.' 'test_changes: []' '  paths:
+    - "src/**"
+    - "docs/**"'
+printf 'def app():\n    return 2\n' > "$repo/src/app.py"
+expect_pass_with_output 'unused declared glob warns' 'declared scope path matched no changed file: docs/**' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/unused-glob-config
+new_fixture "$repo"
+make_change "$repo" 'Source change.' 'test_changes: []' '  paths:
+    - "src/**"
+    - "docs/**"'
+printf 'def app():\n    return 2\n' > "$repo/src/app.py"
+mkdir -p "$repo/.intent"
+printf 'protocol_version: "2.0"\nreview:\n  required: false\n  authorized_reviewers: []\npolicy:\n  warn_unused_paths: false\n' > "$repo/.intent/config.yaml"
+expect_pass_without_output 'warn_unused_paths false suppresses the warning' 'WARN' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/unused-glob-quiet
+new_fixture "$repo"
+make_change "$repo" 'Source change.' 'test_changes: []' '  paths:
+    - "src/**"
+    - "docs/**"'
+printf 'def app():\n    return 2\n' > "$repo/src/app.py"
+expect_pass_without_output '--quiet suppresses the warning' 'WARN' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo" --quiet
+
+# A protected path declared by a glob passes.
+repo=$temp_root/protected-glob
+new_fixture "$repo"
+mkdir -p "$repo/tests/flows"
+printf 'spec\n' > "$repo/tests/flows/login.e2e.js"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm flows
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Retarget a spec.' 'test_changes:
+  - path: "tests/**/*.e2e.js"
+    kind: modified
+    reason: "uniform retarget"'
+printf 'updated spec\n' > "$repo/tests/flows/login.e2e.js"
+expect_pass 'protected path declared by glob passes' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# An added skip marker passes when declared.
+repo=$temp_root/skip-declared
+new_fixture "$repo"
+make_change "$repo" 'Skip a test deliberately.' 'test_changes:
+  - path: "src/suite_inline.rs"
+    kind: skipped
+    reason: "temporarily ignored by decision"'
+printf '#[test]\n#[ignore]\nfn existing() {}\n' > "$repo/src/suite_inline.rs"
+expect_pass 'declared skip marker passes' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
 
 # A failing verification command fails.
 repo=$temp_root/command-fail

@@ -281,6 +281,19 @@ test_change_paths() {
   ' "$1"
 }
 
+# True when the changed path matches a declared test_changes entry, exact or
+# glob. Reads the list produced by test_change_paths; the caller is
+# responsible for keeping the shell from expanding patterns in word lists.
+path_declared_as_test_change() {
+  wanted=$1
+  found=0
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    case "$wanted" in $entry) found=1; break ;; esac
+  done < "$test_change_list"
+  [ "$found" -eq 1 ]
+}
+
 config_has_key() {
   awk -v section="$2" -v key="$3" '
     { sub(/\r$/, "") }
@@ -304,6 +317,20 @@ config_list() {
       gsub(/^"|"$/, "", value)
       if (value != "") print value
       next
+    }
+  ' "$1"
+}
+
+config_bool() {
+  awk -v section="$2" -v key="$3" '
+    { sub(/\r$/, "") }
+    $0 == section ":" { in_section = 1; next }
+    /^[a-z_]+:/ { in_section = 0 }
+    in_section && $0 ~ ("^[[:space:]]+" key ":[[:space:]]*") {
+      value = $0
+      sub("^[[:space:]]+" key ":[[:space:]]*", "", value)
+      print (value == "true") ? 1 : 0
+      exit
     }
   ' "$1"
 }
@@ -644,36 +671,59 @@ while IFS="$(printf '\t')" read -r status path; do
 done < "$raw"
 
 scope_patterns=$(fm_section_list scope paths "$fm")
+warn_unused=1
+if [ -f "$config" ] && [ "$(config_has_key "$config" policy warn_unused_paths)" = 1 ]; then
+  [ "$(config_bool "$config" policy warn_unused_paths)" = 1 ] || warn_unused=0
+fi
 if [ -n "$scope_patterns" ]; then
   outside_scope=0
+  # Declared globs stay literal: without `set -f`, unquoted expansions in
+  # the `for` list pathname-expand against the shell's working directory, so
+  # `src/**` would stop matching nested files.
+  set -f
   while IFS= read -r path; do
-    case $path in .intent/*) continue ;; esac
+    case "$path" in .intent/*) continue ;; esac
     match=0
     for pattern in $scope_patterns; do
-      case $path in $pattern) match=1; break ;; esac
+      case "$path" in $pattern) match=1; break ;; esac
     done
     if [ "$match" -eq 0 ]; then
       note_fail "path outside declared scope: $path"
       outside_scope=1
     fi
   done < "$changed_all"
+  if [ "$warn_unused" -eq 1 ]; then
+    for pattern in $scope_patterns; do
+      matched=0
+      while IFS= read -r path; do
+        case "$path" in .intent/*) continue ;; esac
+        case "$path" in $pattern) matched=1; break ;; esac
+      done < "$changed_all"
+      [ "$matched" -eq 1 ] || warn "declared scope path matched no changed file: $pattern"
+    done
+  fi
+  set +f
   [ "$outside_scope" -eq 1 ] || say "changed paths are within declared scope"
 fi
 
 test_change_list=$tmp/test-changes
 test_change_paths "$fm" > "$test_change_list"
 if [ -n "$patterns" ]; then
+  # Same literal-pattern guard as the scope check: entries may be globs, and
+  # the protected pattern list must not pathname-expand.
+  set -f
   while IFS= read -r path; do
-    case $path in .intent/*) continue ;; esac
+    case "$path" in .intent/*) continue ;; esac
     match=0
     for pattern in $patterns; do
-      case $path in $pattern) match=1; break ;; esac
+      case "$path" in $pattern) match=1; break ;; esac
     done
     [ "$match" -eq 1 ] || continue
-    if ! grep -Fqx -- "$path" "$test_change_list"; then
+    if ! path_declared_as_test_change "$path"; then
       note_fail "protected path changed but missing from test_changes: $path"
     fi
   done < "$changed_declared"
+  set +f
 fi
 
 weaken_re='^-[[:space:]]*((def|func|fn)[[:space:]]+[Tt]est|it\(|test\(|describe\(|#\[test\]|@Test)'
@@ -682,7 +732,7 @@ while IFS= read -r path; do
   case $path in .intent/*) continue ;; esac
   file_diff "$path" > "$tmp/file-diff" || true
   if grep -Eq -- "$weaken_re" "$tmp/file-diff" || grep -Eq -- "$skip_re" "$tmp/file-diff"; then
-    if ! grep -Fqx -- "$path" "$test_change_list"; then
+    if ! path_declared_as_test_change "$path"; then
       note_fail "test definition removed or skipped but not declared in test_changes: $path"
     fi
   fi
