@@ -9,9 +9,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Exercise the suites without the schema toolchain first: both branches
+      # of the schema-validation behavior must be covered by design.
+      - name: Run test scripts (without schema toolchain)
+        run: |
+          set -eu
+          for t in tests/*.sh; do
+            printf '\n== %s\n' "$t"
+            sh "$t"
+          done
+
       - name: Install schema validation dependencies
         run: python3 -m pip install --quiet pyyaml jsonschema
-      - name: Run test scripts
+
+      - name: Run test scripts (with schema toolchain)
         run: |
           set -eu
           for t in tests/*.sh; do

@@ -98,6 +98,12 @@ mkdir -p "$repo/docs"
 printf 'notes\n' > "$repo/docs/notes.md"
 expect_pass_with_output 'docs-only change needs no record' 'docs-only change; no record required' --base "$base_sha" --root "$repo"
 
+# The default `**/*.md` exemption covers top-level markdown such as README.md.
+repo=$temp_root/readme-only
+new_repo "$repo"
+printf 'updated readme\n' > "$repo/README.md"
+expect_pass_with_output 'root README.md needs no record' 'no record required' --base "$base_sha" --root "$repo"
+
 # An Intent-Skip trailer in a commit message passes with a notice.
 repo=$temp_root/skip-trailer
 new_repo "$repo"

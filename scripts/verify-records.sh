@@ -101,7 +101,7 @@ config_has_key() {
 config_list() {
   awk -v section="$2" -v key="$3" '
     { sub(/\r$/, "") }
-    $0 == section ":" { in_section = 1; in_list = 0; next }
+    $0 ~ ("^" section ":[[:space:]]*$") { in_section = 1; in_list = 0; next }
     in_section && /^[a-z_]+:/ { in_section = 0; in_list = 0 }
     in_section && /^[[:space:]]+[A-Za-z_]+:/ {
       if ($0 ~ ("^[[:space:]]+" key ":[[:space:]]*$")) { in_list = 1 } else { in_list = 0 }
@@ -118,6 +118,23 @@ config_list() {
   ' "$1"
 }
 
+# True when PATH matches PATTERN; a `**/` segment may match zero directories,
+# so `**/*.md` covers a top-level README.md.
+path_matches() {
+  p=$1
+  w=$2
+  case "$w" in $p) return 0 ;; esac
+  case "$p" in
+    '**/'*) path_matches "${p#\*\*/}" "$w" && return 0 ;;
+    *'/**/'*)
+      head=${p%%'/**/'*}
+      tail=${p#*'/**/'}
+      path_matches "${head}/${tail}" "$w" && return 0
+      ;;
+  esac
+  return 1
+}
+
 record_exists() {
   id=$1
   if [ -n "$head_ref" ]; then
@@ -127,9 +144,11 @@ record_exists() {
   fi
 }
 
-exempt=$default_exempt
+exempt_file=$tmp/exempt-paths
 if [ -f "$config" ] && [ "$(config_has_key "$config" policy record_exempt_paths)" = 1 ]; then
-  exempt=$(config_list "$config" policy record_exempt_paths)
+  config_list "$config" policy record_exempt_paths > "$exempt_file"
+else
+  printf '%s\n' "$default_exempt" > "$exempt_file"
 fi
 
 raw=$tmp/raw
@@ -155,20 +174,20 @@ awk -F'\t' '
 non_exempt=$tmp/non-exempt
 : > "$non_exempt"
 all_exempt=1
-# Declared exempt globs stay literal: without `set -f`, unquoted expansion in
-# the `for` list pathname-expands the patterns against the working directory.
-set -f
 while IFS= read -r path; do
   [ -n "$path" ] || continue
   match=0
-  for pattern in $exempt; do
-    case "$path" in $pattern) match=1; break ;; esac
-  done
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    if path_matches "$pattern" "$path"; then
+      match=1
+      break
+    fi
+  done < "$exempt_file"
   if [ "$match" -eq 1 ]; then continue; fi
   all_exempt=0
   printf '%s\n' "$path" >> "$non_exempt"
 done < "$changed"
-set +f
 
 if [ "$all_exempt" -eq 1 ]; then
   say "docs-only change; no record required"

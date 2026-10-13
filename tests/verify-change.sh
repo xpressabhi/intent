@@ -536,11 +536,138 @@ printf 'stub record\n' > "$repo/.intent/changes/CHG-0002/proposal.md"
 printf '# stub decision\n' > "$repo/.intent/decisions/DEC-0001.md"
 expect_pass 'links of different kinds resolve independently' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
 
+# Globs cover top-level paths: `**/*` matches a root file, and the default
+# protected patterns protect root-level test files.
+repo=$temp_root/scope-all-toplevel
+new_fixture "$repo"
+printf 'x = 1\n' > "$repo/setup.py"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm toplevel
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Top-level change.' 'test_changes: []' '  paths:
+    - "**/*"'
+printf 'x = 2\n' > "$repo/setup.py"
+expect_pass '**/* matches a top-level file' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/protected-root-test
+new_fixture "$repo"
+printf 'test("x", () => {});\n' > "$repo/app.test.js"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm roottest
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Change a root test.' 'test_changes: []'
+printf 'test("x", () => { expect(1).toBe(1); });\n' > "$repo/app.test.js"
+expect_fail 'root-level test file is protected' 'app.test.js' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# Declared patterns containing spaces are matched without word splitting.
+repo=$temp_root/scope-space-pattern
+new_fixture "$repo"
+mkdir -p "$repo/dir"
+printf 'one\n' > "$repo/dir/my file.txt"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm spaced
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Space in a declared path.' 'test_changes: []' '  paths:
+    - "dir/my file.txt"'
+printf 'two\n' > "$repo/dir/my file.txt"
+expect_pass 'declared path with a space matches' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/protected-space
+new_fixture "$repo"
+mkdir -p "$repo/dir"
+printf 'one\n' > "$repo/dir/my file.txt"
+git -C "$repo" add -A
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm spaced
+base_sha=$(git -C "$repo" rev-parse HEAD)
+make_change "$repo" 'Protected space.' 'test_changes: []'
+printf 'two\n' > "$repo/dir/my file.txt"
+expect_fail 'protected pattern with a space is honored' 'dir/my file.txt' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo" --protected 'dir/my file.txt'
+
+# The front-matter subset is enforced: unsupported syntax is a hard error.
+repo=$temp_root/frontmatter-flow
+new_fixture "$repo"
+make_change "$repo" 'Unsupported syntax.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's|^scope:$|scope: {paths: ["src/**"]}|; s/^  paths: \[\]$//'
+printf 'def test_existing():\n    assert app() == 2\n' > "$repo/tests/test_app.py"
+expect_fail 'flow-style scope is rejected' 'unsupported syntax' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/frontmatter-anchor
+new_fixture "$repo"
+make_change "$repo" 'Anchors rejected.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^scope:$/scope: \&anchor/'
+expect_fail 'anchors in front matter are rejected' 'unsupported syntax' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/frontmatter-tab
+new_fixture "$repo"
+make_change "$repo" 'Tabs rejected.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" "s/^request:/$(printf '\t')request:/"
+expect_fail 'tab-indented front matter is rejected' 'unsupported syntax' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/frontmatter-comment
+new_fixture "$repo"
+make_change "$repo" 'Comments rejected.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^request:.*/# request goes here/'
+expect_fail 'comments in front matter are rejected' 'unsupported syntax' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# A trailing space after a section key must not disable its checks.
+repo=$temp_root/frontmatter-trailing-space
+new_fixture "$repo"
+make_change "$repo" 'Trailing space.' 'test_changes: []' '  paths:
+    - "src/**"'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^scope:$/scope: /'
+printf 'def test_existing():\n    assert app() == 2\n' > "$repo/tests/test_app.py"
+expect_fail 'trailing space after scope stays enforced' 'path outside declared scope' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# Structural checks hold without the schema toolchain.
+repo=$temp_root/revision-zero
+new_fixture "$repo"
+make_change "$repo" 'Bad revision.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^  revision: 1/  revision: 0/'
+expect_fail 'revision zero fails without the toolchain' 'revision must be a positive integer' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/bad-id
+new_fixture "$repo"
+make_change "$repo" 'Bad id.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^id: .*/id: "bad id with spaces"/'
+expect_fail 'invalid change id fails' 'change id must match' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/empty-title
+new_fixture "$repo"
+make_change "$repo" 'Empty title.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^title: .*/title: ""/'
+expect_fail 'empty title fails' 'title must not be empty' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/bad-created
+new_fixture "$repo"
+make_change "$repo" 'Bad timestamp.' 'test_changes: []'
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^created_at: .*/created_at: "yesterday"/'
+expect_fail 'invalid created_at fails' 'created_at must be an RFC 3339' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/bad-kind
+new_fixture "$repo"
+make_change "$repo" 'Bad kind.' 'test_changes:
+  - path: "tests/x.test.js"
+    kind: bogus
+    reason: "x"'
+expect_fail 'unknown test_changes kind fails' 'kind is not one of' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# Every shipped example's recorded digest matches its body.
+for change_dir in "$repo_root"/examples/v2/*/.intent/changes/CHG-*; do
+  [ -f "$change_dir/proposal.md" ] || continue
+  rel=${change_dir#"$repo_root"/}
+  printed=$(sh "$verifier" --root "$repo_root" --change "$rel" --print-digest)
+  recorded=$(sed -n 's/^  digest: "\(sha256:.*\)"$/\1/p' "$change_dir/proposal.md")
+  if [ "$printed" != "$recorded" ]; then fail "example digest mismatch: $rel records $recorded but its body is $printed"; fi
+done
+pass 'example record digests match their bodies'
+
 # Schema validation: present toolchain validates; absent toolchain warns, and
 # --strict turns that skip into a failure.
 repo=$temp_root/strict
 new_fixture "$repo"
 make_change "$repo" 'Change app behavior.'
+mkdir -p "$repo/.intent/schemas/v2"
+cp "$repo_root"/schemas/v2/*.schema.json "$repo/.intent/schemas/v2/"
 if python3 -c 'import yaml, jsonschema' >/dev/null 2>&1; then
   expect_pass '--strict passes when schema validation runs' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo" --strict
 else
@@ -563,6 +690,14 @@ if python3 -c 'import yaml, jsonschema' >/dev/null 2>&1; then
   cp "$repo_root"/schemas/v2/*.schema.json "$repo/.intent/schemas/v2/"
   flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^  revision: 1/  revision: 0/'
   expect_fail 'schema-invalid record fails' 'schema' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+  repo=$temp_root/yaml-error
+  new_fixture "$repo"
+  make_change "$repo" 'Malformed YAML.'
+  mkdir -p "$repo/.intent/schemas/v2"
+  cp "$repo_root"/schemas/v2/*.schema.json "$repo/.intent/schemas/v2/"
+  flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^request: ".*"$/request: "unterminated/'
+  expect_fail 'malformed YAML fails as a schema error' 'schema' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
 else
   printf 'skip - schema validation scenario (python3 with PyYAML and jsonschema unavailable)\n'
 fi

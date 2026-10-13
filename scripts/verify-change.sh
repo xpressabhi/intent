@@ -48,6 +48,52 @@ note_fail() {
   errors=$((errors + 1))
 }
 
+# True when PATH matches PATTERN. Patterns arrive as already-quoted shell
+# words (never a word list to expand), so `case` supplies the pattern
+# semantics; additionally, a `**/` segment may match zero directories, so
+# `**/*.md` covers a top-level `README.md` the way authors expect.
+path_matches() {
+  p=$1
+  w=$2
+  case "$w" in $p) return 0 ;; esac
+  case "$p" in
+    '**/'*) path_matches "${p#\*\*/}" "$w" && return 0 ;;
+    *'/**/'*)
+      head=${p%%'/**/'*}
+      tail=${p#*'/**/'}
+      path_matches "${head}/${tail}" "$w" && return 0
+      ;;
+  esac
+  return 1
+}
+
+# Rejects front-matter lines outside the documented subset (spec §3.2): tabs,
+# comments, flow collections, anchors, tags, aliases, and block scalars. The
+# empty-list spelling `[]` stays allowed. A hard error, not a warning, so
+# unsupported syntax can never silently disable a check.
+front_matter_check() {
+  bad=$(awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+    }
+    line == "" { next }
+    line ~ /\t/ { print NR ": tab character"; exit }
+    {
+      bare = line
+      gsub(/"[^"]*"/, "", bare)
+      if (bare ~ /(^|[ \t])#/) { print NR ": comment"; exit }
+      if (bare ~ /[{}\[\]&!]/) {
+        if (bare ~ /^[[:space:]]*[A-Za-z_]+:[[:space:]]*\[\][[:space:]]*$/) next
+        print NR ": flow collection, anchor, or tag"; exit
+      }
+      if (bare ~ /^[[:space:]]*[A-Za-z_]+:[[:space:]]*[|>*]/) { print NR ": block scalar or alias"; exit }
+      if (bare ~ /^[[:space:]]*-[[:space:]]*[|>*]/) { print NR ": block scalar or alias"; exit }
+    }
+  ' "$1")
+  [ -z "$bad" ] || fail "proposal.md front matter uses unsupported syntax (line $bad)"
+}
+
 default_protected='tests/**
 test/**
 spec/**
@@ -96,7 +142,8 @@ while [ "$#" -gt 0 ]; do
       ;;
     --protected)
       [ "$#" -ge 2 ] || fail "--protected requires a pattern"
-      protected="${protected}${protected:+ }$2"
+      protected="${protected}${protected:+
+}$2"
       protected_set=1
       shift 2
       ;;
@@ -257,7 +304,7 @@ fm_links() {
 fm_section_list() {
   awk -v section="$1" -v key="$2" '
     { sub(/\r$/, "") }
-    $0 == section ":" { in_section = 1; in_list = 0; next }
+    $0 ~ ("^" section ":[[:space:]]*$") { in_section = 1; in_list = 0; next }
     in_section && /^[^[:space:]]/ { in_section = 0; in_list = 0 }
     in_section && /^[[:space:]]+[A-Za-z_]+:/ {
       if ($0 ~ ("^[[:space:]]+" key ":[[:space:]]*$")) { in_list = 1 } else { in_list = 0 }
@@ -290,15 +337,33 @@ test_change_paths() {
   ' "$1"
 }
 
+# Declared test_changes kinds, in order.
+test_change_kinds() {
+  awk '
+    { sub(/\r$/, "") }
+    /^test_changes:/ { in_list = 1; next }
+    in_list && /^[^[:space:]]/ { in_list = 0 }
+    in_list && /^[[:space:]]+kind:/ {
+      value = $0
+      sub(/^[[:space:]]+kind:[[:space:]]*/, "", value)
+      sub(/[[:space:]]*#.*/, "", value)
+      gsub(/^"|"$/, "", value)
+      print value
+    }
+  ' "$1"
+}
+
 # True when the changed path matches a declared test_changes entry, exact or
-# glob. Reads the list produced by test_change_paths; the caller is
-# responsible for keeping the shell from expanding patterns in word lists.
+# glob. Reads the list produced by test_change_paths.
 path_declared_as_test_change() {
   wanted=$1
   found=0
   while IFS= read -r entry; do
     [ -n "$entry" ] || continue
-    case "$wanted" in $entry) found=1; break ;; esac
+    if path_matches "$entry" "$wanted"; then
+      found=1
+      break
+    fi
   done < "$test_change_list"
   [ "$found" -eq 1 ]
 }
@@ -316,7 +381,7 @@ config_has_key() {
 config_list() {
   awk -v section="$2" -v key="$3" '
     { sub(/\r$/, "") }
-    $0 == section ":" { in_section = 1; in_list = 0; next }
+    $0 ~ ("^" section ":[[:space:]]*$") { in_section = 1; in_list = 0; next }
     in_section && /^[a-z_]+:/ { in_section = 0; in_list = 0 }
     in_section && /^[[:space:]]+[A-Za-z_]+:/ {
       if ($0 ~ ("^[[:space:]]+" key ":[[:space:]]*$")) { in_list = 1 } else { in_list = 0 }
@@ -485,7 +550,10 @@ def check(schema_name, target, label):
     except jsonschema.ValidationError as exc:
         print("%s: %s" % (label, exc.message))
         failed = True
-    except Exception as exc:  # tooling or schema unavailable for this draft
+    except yaml.YAMLError as exc:
+        print("%s: invalid YAML: %s" % (label, exc))
+        failed = True
+    except Exception as exc:  # unexpected tooling or schema unavailability
         print("unavailable: %s (%s)" % (label, exc))
         raise SystemExit(2)
 
@@ -555,12 +623,15 @@ if start=$(body_start_line "$proposal"); then
 else
   fail "proposal.md is missing valid front matter: $proposal"
 fi
+front_matter_check "$fm"
 
-patterns=$default_protected
+patterns_file=$tmp/protected-patterns
 if [ "$protected_set" -eq 1 ]; then
-  patterns=$protected
+  printf '%s\n' "$protected" > "$patterns_file"
 elif [ -f "$config" ] && [ "$(config_has_key "$config" policy protected_paths)" = 1 ]; then
-  patterns=$(config_protected_paths "$config")
+  config_protected_paths "$config" > "$patterns_file"
+else
+  printf '%s\n' "$default_protected" > "$patterns_file"
 fi
 
 if [ -z "$command" ] && [ -f "$config" ]; then
@@ -603,23 +674,60 @@ case $review_required_value in
   true|false) ;;
   *) note_fail "review_required must be true or false: ${review_required_value:-<missing>}" ;;
 esac
+revision_value=$(fm_proposal_value revision "$fm")
+case "$revision_value" in
+  ''|*[!0-9]*) note_fail "proposal revision must be a positive integer: ${revision_value:-<missing>}" ;;
+  *) [ "$revision_value" -ge 1 ] || note_fail "proposal revision must be a positive integer: $revision_value" ;;
+esac
+id_value=$(fm_scalar id "$fm")
+case "$id_value" in
+  ''|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) note_fail "change id must match ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$: ${id_value:-<missing>}" ;;
+  *) [ "${#id_value}" -le 64 ] || note_fail "change id must match ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$: $id_value" ;;
+esac
+[ -n "$(fm_scalar title "$fm")" ] || note_fail "title must not be empty"
+[ -n "$(fm_scalar request "$fm")" ] || note_fail "request must not be empty"
+created_value=$(fm_scalar created_at "$fm")
+case "$created_value" in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*) ;;
+  *) note_fail "created_at must be an RFC 3339 timestamp: ${created_value:-<missing>}" ;;
+esac
+if [ -n "$recorded" ]; then
+  case "$recorded" in
+    sha256:*) digest_hex=${recorded#sha256:} ;;
+    *) digest_hex= ;;
+  esac
+  case "$digest_hex" in
+    *[!0-9a-f]*|'') note_fail "proposal digest must be a sha256: digest: $recorded" ;;
+    *) [ "${#digest_hex}" -eq 64 ] || note_fail "proposal digest must be a sha256: digest: $recorded" ;;
+  esac
+fi
+test_change_kinds "$fm" > "$tmp/test-change-kinds"
+while IFS= read -r kind_value; do
+  case " added modified deleted skipped " in
+    *" $kind_value "*) ;;
+    *) note_fail "test_changes kind is not one of added, modified, deleted, skipped: ${kind_value:-<missing>}" ;;
+  esac
+done < "$tmp/test-change-kinds"
 if [ "$status_value" = complete ] && [ ! -f "$change_dir/conformance.md" ]; then
   note_fail "status complete requires conformance.md"
 fi
 
 # Declared links must resolve to records or decision files that exist.
-set -f
-for linked in $(fm_links related "$fm") $(fm_links supersedes "$fm"); do
+fm_links related "$fm" > "$tmp/link-changes"
+fm_links supersedes "$fm" >> "$tmp/link-changes"
+while IFS= read -r linked; do
+  [ -n "$linked" ] || continue
   if [ ! -f "$root/.intent/changes/$linked/proposal.md" ]; then
     note_fail "unknown change link: $linked"
   fi
-done
-for linked in $(fm_links decisions "$fm"); do
+done < "$tmp/link-changes"
+fm_links decisions "$fm" > "$tmp/link-decisions"
+while IFS= read -r linked; do
+  [ -n "$linked" ] || continue
   if [ ! -f "$root/.intent/decisions/$linked.md" ]; then
     note_fail "unknown decision link: $linked"
   fi
-done
-set +f
+done < "$tmp/link-decisions"
 
 approval_required=0
 if [ -f "$config" ] && [ "$(config_review_required "$config")" = 1 ]; then
@@ -700,60 +808,67 @@ while IFS="$(printf '\t')" read -r status path; do
   esac
 done < "$raw"
 
-scope_patterns=$(fm_section_list scope paths "$fm")
+scope_paths_file=$tmp/scope-paths
+fm_section_list scope paths "$fm" > "$scope_paths_file"
 warn_unused=1
 if [ -f "$config" ] && [ "$(config_has_key "$config" policy warn_unused_paths)" = 1 ]; then
   [ "$(config_bool "$config" policy warn_unused_paths)" = 1 ] || warn_unused=0
 fi
-if [ -n "$scope_patterns" ]; then
+if [ -s "$scope_paths_file" ]; then
   outside_scope=0
-  # Declared globs stay literal: without `set -f`, unquoted expansions in
-  # the `for` list pathname-expand against the shell's working directory, so
-  # `src/**` would stop matching nested files.
-  set -f
+  # Patterns are read line by line and matched through path_matches, so they
+  # are never expanded (no word lists, no pathname expansion) and may contain
+  # spaces.
   while IFS= read -r path; do
     case "$path" in .intent/*) continue ;; esac
     match=0
-    for pattern in $scope_patterns; do
-      case "$path" in $pattern) match=1; break ;; esac
-    done
+    while IFS= read -r pattern; do
+      [ -n "$pattern" ] || continue
+      if path_matches "$pattern" "$path"; then
+        match=1
+        break
+      fi
+    done < "$scope_paths_file"
     if [ "$match" -eq 0 ]; then
       note_fail "path outside declared scope: $path"
       outside_scope=1
     fi
   done < "$changed_all"
   if [ "$warn_unused" -eq 1 ]; then
-    for pattern in $scope_patterns; do
+    while IFS= read -r pattern; do
+      [ -n "$pattern" ] || continue
       matched=0
       while IFS= read -r path; do
         case "$path" in .intent/*) continue ;; esac
-        case "$path" in $pattern) matched=1; break ;; esac
+        if path_matches "$pattern" "$path"; then
+          matched=1
+          break
+        fi
       done < "$changed_all"
       [ "$matched" -eq 1 ] || warn "declared scope path matched no changed file: $pattern"
-    done
+    done < "$scope_paths_file"
   fi
-  set +f
   [ "$outside_scope" -eq 1 ] || say "changed paths are within declared scope"
 fi
 
 test_change_list=$tmp/test-changes
 test_change_paths "$fm" > "$test_change_list"
-if [ -n "$patterns" ]; then
-  # Same literal-pattern guard as the scope check: entries may be globs, and
-  # the protected pattern list must not pathname-expand.
-  set -f
+if [ -s "$patterns_file" ]; then
   while IFS= read -r path; do
     case "$path" in .intent/*) continue ;; esac
     match=0
-    for pattern in $patterns; do
-      case "$path" in $pattern) match=1; break ;; esac
-    done
+    while IFS= read -r pattern; do
+      [ -n "$pattern" ] || continue
+      if path_matches "$pattern" "$path"; then
+        match=1
+        break
+      fi
+    done < "$patterns_file"
     [ "$match" -eq 1 ] || continue
     if ! path_declared_as_test_change "$path"; then
       note_fail "protected path changed but missing from test_changes: $path"
     fi
   done < "$changed_declared"
-  set +f
 fi
 
 weaken_re='^-[[:space:]]*((def|func|fn)[[:space:]]+[Tt]est|it\(|test\(|describe\(|#\[test\]|@Test)'
