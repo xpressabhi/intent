@@ -7,7 +7,7 @@ created_at: "2026-09-28T10:00:00Z"
 request: "Report a clear validation error when the command receives an empty input file."
 proposal:
   revision: 1
-  digest: "sha256:ec9c4faa2e4d9cf245cbe8d56d64d0e961f4f55f6fd3449af67ea13064525266"
+  digest: "sha256:4bebcdcfbe5a2b65db1a32692327f1dbd668491fd08609d1684890c165ed6368"
 scope:
   paths: []
 test_changes: []

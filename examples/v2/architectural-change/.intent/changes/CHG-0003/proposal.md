@@ -7,7 +7,7 @@ created_at: "2026-09-28T11:00:00Z"
 request: "Persist durable audit history for account-setting changes using the repository's existing event stream."
 proposal:
   revision: 2
-  digest: "sha256:0573b6aea636c2ebeb1f0260ece47fd1f9556c29dd9db554ee93f02d7a56a90d"
+  digest: "sha256:4691fd0afeda3df6831c5879e6b83ddeb5b1d1e9b2ea2d0f775e364d8e1243d1"
 scope:
   paths: []
 test_changes: []

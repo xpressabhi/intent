@@ -5,7 +5,7 @@
 The export command accepts an explicit output-format option with `jsonl` as the new value and streams matching records one per line through the existing filtered iterator. The default JSON output is unchanged.
 
 Change `CHG-0002` revision 1, body digest
-`sha256:2b5728f24bd06d6ead47d7d01c783d1a432a69ed1bc788c2e0db88419774627b`.
+`sha256:908dd88760c47f2cec8d760a5d4e157b40d8f4482c586008f7255f6109bbe51f`.
 
 ## Verification
 
@@ -26,5 +26,5 @@ Change `CHG-0002` revision 1, body digest
 ## Approval constraints
 
 Approved digest
-`sha256:2b5728f24bd06d6ead47d7d01c783d1a432a69ed1bc788c2e0db88419774627b`
+`sha256:908dd88760c47f2cec8d760a5d4e157b40d8f4482c586008f7255f6109bbe51f`
 by `reviewer:maintainer-1`. Constraints honored: current flags and default output behavior preserved; no runtime dependency added.

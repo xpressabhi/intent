@@ -29,7 +29,7 @@ Install the pinned Intent v2 bundle into the current repository so changes are r
    ```sh
    sh "$checkout/scripts/install.sh" --target .
    ```
-   Add `--ci` to also install the reference workflow at `.github/workflows/intent-verify.yml` when that file is absent. Add `--reviewer ID` once per reviewer when the repository should require approval for every change; installs without it keep approval off.
+   Add `--ci` to also install the reference workflow at `.github/workflows/intent-verify.yml` when that file is absent. Add `--reviewer ID` once per reviewer when the repository should require approval for every change; installs without it keep approval off. If the adoption will be committed together with other changes, declare `AGENTS.md` and `.github/workflows/intent-verify.yml` in that record's scope, or commit the adoption on its own first.
 4. Verify the installation:
    - `.intent/` contains `config.yaml`, `PROJECT.md`, `AGENT_GUIDE.md`, `protocol/v2.md`, `schemas/v2/`, `scripts/verify-change.sh`, `scripts/verify-records.sh`, `decisions/`, and `changes/TEMPLATE/`.
    - `AGENTS.md` contains one managed block between `<!-- intent:managed:start -->` and `<!-- intent:managed:end -->`, with all other text preserved.

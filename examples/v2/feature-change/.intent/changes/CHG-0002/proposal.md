@@ -7,7 +7,7 @@ created_at: "2026-09-28T10:15:00Z"
 request: "Export records matching existing query filters as JSON Lines while keeping memory use bounded."
 proposal:
   revision: 1
-  digest: "sha256:2b5728f24bd06d6ead47d7d01c783d1a432a69ed1bc788c2e0db88419774627b"
+  digest: "sha256:908dd88760c47f2cec8d760a5d4e157b40d8f4482c586008f7255f6109bbe51f"
 scope:
   paths: []
 test_changes:
