@@ -252,13 +252,17 @@ fm_links() {
 }
 
 # List items nested under `SECTION:` then `KEY:` (e.g. scope.paths,
-# links.related).
+# links.related). Sibling keys reset the list so items never leak across
+# them.
 fm_section_list() {
   awk -v section="$1" -v key="$2" '
     { sub(/\r$/, "") }
     $0 == section ":" { in_section = 1; in_list = 0; next }
     in_section && /^[^[:space:]]/ { in_section = 0; in_list = 0 }
-    in_section && $0 ~ ("^[[:space:]]+" key ":[[:space:]]*$") { in_list = 1; next }
+    in_section && /^[[:space:]]+[A-Za-z_]+:/ {
+      if ($0 ~ ("^[[:space:]]+" key ":[[:space:]]*$")) { in_list = 1 } else { in_list = 0 }
+      next
+    }
     in_section && in_list && /^[[:space:]]*-[[:space:]]*/ {
       value = $0
       sub(/^[[:space:]]*-[[:space:]]*/, "", value)
@@ -314,7 +318,10 @@ config_list() {
     { sub(/\r$/, "") }
     $0 == section ":" { in_section = 1; in_list = 0; next }
     in_section && /^[a-z_]+:/ { in_section = 0; in_list = 0 }
-    in_section && $0 ~ ("^[[:space:]]+" key ":[[:space:]]*$") { in_list = 1; next }
+    in_section && /^[[:space:]]+[A-Za-z_]+:/ {
+      if ($0 ~ ("^[[:space:]]+" key ":[[:space:]]*$")) { in_list = 1 } else { in_list = 0 }
+      next
+    }
     in_section && in_list && /^[[:space:]]*-[[:space:]]*/ {
       value = $0
       sub(/^[[:space:]]*-[[:space:]]*/, "", value)

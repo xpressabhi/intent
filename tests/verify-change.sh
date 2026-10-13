@@ -523,6 +523,19 @@ make_change "$repo" 'Linked decision.' 'test_changes: []' '  paths: []' '  decis
     - "DEC-0009"'
 expect_fail 'unknown decision link fails' 'unknown decision link' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
 
+# Links of different kinds resolve independently: a valid decision id must not
+# be read as a change link (sibling list keys stay scoped to their own items).
+repo=$temp_root/links-kinds
+new_fixture "$repo"
+make_change "$repo" 'Linked kinds.' 'test_changes: []' '  paths: []' '  related:
+    - "CHG-0002"
+  decisions:
+    - "DEC-0001"'
+mkdir -p "$repo/.intent/changes/CHG-0002" "$repo/.intent/decisions"
+printf 'stub record\n' > "$repo/.intent/changes/CHG-0002/proposal.md"
+printf '# stub decision\n' > "$repo/.intent/decisions/DEC-0001.md"
+expect_pass 'links of different kinds resolve independently' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
 # Schema validation: present toolchain validates; absent toolchain warns, and
 # --strict turns that skip into a failure.
 repo=$temp_root/strict
