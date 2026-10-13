@@ -38,12 +38,14 @@ new_fixture() {
 }
 
 # Build a v2 change record: front matter + body. The body is kept beside the
-# record as proposal.md.body so tests can recompute its digest.
+# record as proposal.md.body so tests can recompute its digest. An optional
+# fifth argument (or $LINKS_YAML) adds a `links:` block under the front matter.
 make_change() {
   dir=$1
   body_text=$2
   test_yaml=${3-${TEST_YAML-'test_changes: []'}}
   scope_yaml=${4-${SCOPE_YAML-'  paths: []'}}
+  links_yaml=${5-${LINKS_YAML-}}
   proposal=$dir/.intent/changes/CHG-0001/proposal.md
   body=$dir/.intent/changes/CHG-0001/proposal.md.body
   printf '%s\n' "$body_text" > "$body"
@@ -59,6 +61,9 @@ make_change() {
     printf 'proposal:\n  revision: 1\n  digest: "sha256:%s"\n' "$digest"
     printf 'scope:\n%s\n' "$scope_yaml"
     printf '%s\n' "$test_yaml"
+    if [ -n "$links_yaml" ]; then
+      printf 'links:\n%s\n' "$links_yaml"
+    fi
     printf 'review_required: false\n'
     printf '%s\n' '---'
     cat "$body"
@@ -366,7 +371,7 @@ make_change "$repo" 'Source change.' 'test_changes: []' '  paths:
 printf 'def app():\n    return 2\n' > "$repo/src/app.py"
 mkdir -p "$repo/.intent"
 printf 'protocol_version: "2.0"\nreview:\n  required: false\n  authorized_reviewers: []\npolicy:\n  warn_unused_paths: false\n' > "$repo/.intent/config.yaml"
-expect_pass_without_output 'warn_unused_paths false suppresses the warning' 'WARN' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+expect_pass_without_output 'warn_unused_paths false suppresses the warning' 'declared scope path matched no changed file' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
 
 repo=$temp_root/unused-glob-quiet
 new_fixture "$repo"
@@ -478,6 +483,57 @@ write_approval_config "$repo"
 flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^review_required: false/review_required: true/'
 write_review "$repo" "$(change_digest_value "$repo")" 'reviewer:stranger' approved
 expect_fail 'unauthorized approval reviewer fails' 'authorized' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# A front-matter-only edit after approval keeps the approval valid.
+repo=$temp_root/approval-frontmatter-edit
+new_fixture "$repo"
+make_change "$repo" 'Approved change.'
+write_approval_config "$repo"
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^review_required: false/review_required: true/'
+write_review "$repo" "$(change_digest_value "$repo")" 'reviewer:maintainer-1' approved
+flip_change "$repo/.intent/changes/CHG-0001/proposal.md" 's/^title: .*/title: "Retitled after approval"/'
+expect_pass 'front-matter edit keeps approval valid' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# Declared links resolve against records and decisions that exist.
+repo=$temp_root/links
+new_fixture "$repo"
+make_change "$repo" 'Linked change.' 'test_changes: []' '  paths: []' '  related:
+    - "CHG-0002"'
+mkdir -p "$repo/.intent/changes/CHG-0002"
+printf 'stub record\n' > "$repo/.intent/changes/CHG-0002/proposal.md"
+expect_pass 'known change link resolves' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/link-unknown
+new_fixture "$repo"
+make_change "$repo" 'Linked change.' 'test_changes: []' '  paths: []' '  related:
+    - "CHG-0009"'
+expect_fail 'unknown change link fails' 'unknown change link' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/decision-link
+new_fixture "$repo"
+make_change "$repo" 'Linked decision.' 'test_changes: []' '  paths: []' '  decisions:
+    - "DEC-0001"'
+mkdir -p "$repo/.intent/decisions"
+printf '# stub decision\n' > "$repo/.intent/decisions/DEC-0001.md"
+expect_pass 'known decision link resolves' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+repo=$temp_root/decision-unknown
+new_fixture "$repo"
+make_change "$repo" 'Linked decision.' 'test_changes: []' '  paths: []' '  decisions:
+    - "DEC-0009"'
+expect_fail 'unknown decision link fails' 'unknown decision link' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+
+# Schema validation: present toolchain validates; absent toolchain warns, and
+# --strict turns that skip into a failure.
+repo=$temp_root/strict
+new_fixture "$repo"
+make_change "$repo" 'Change app behavior.'
+if python3 -c 'import yaml, jsonschema' >/dev/null 2>&1; then
+  expect_pass '--strict passes when schema validation runs' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo" --strict
+else
+  expect_pass_with_output 'schema validation warns without the toolchain' 'schema validation skipped' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo"
+  expect_fail '--strict fails when schema validation cannot run' 'schema' --change .intent/changes/CHG-0001 --base "$base_sha" --root "$repo" --strict
+fi
 
 # Auto-discovery of the only change record.
 repo=$temp_root/autodiscover

@@ -246,6 +246,11 @@ fm_proposal_value() {
   ' "$2"
 }
 
+# List items under `links:` then `KIND:`.
+fm_links() {
+  fm_section_list links "$1" "$2"
+}
+
 # List items nested under `SECTION:` then `KEY:` (e.g. scope.paths,
 # links.related).
 fm_section_list() {
@@ -595,6 +600,20 @@ if [ "$status_value" = complete ] && [ ! -f "$change_dir/conformance.md" ]; then
   note_fail "status complete requires conformance.md"
 fi
 
+# Declared links must resolve to records or decision files that exist.
+set -f
+for linked in $(fm_links related "$fm") $(fm_links supersedes "$fm"); do
+  if [ ! -f "$root/.intent/changes/$linked/proposal.md" ]; then
+    note_fail "unknown change link: $linked"
+  fi
+done
+for linked in $(fm_links decisions "$fm"); do
+  if [ ! -f "$root/.intent/decisions/$linked.md" ]; then
+    note_fail "unknown decision link: $linked"
+  fi
+done
+set +f
+
 approval_required=0
 if [ -f "$config" ] && [ "$(config_review_required "$config")" = 1 ]; then
   approval_required=1
@@ -638,7 +657,11 @@ if schema_validate > "$schema_output" 2>&1; then
 else
   schema_rc=$?
   if [ "$schema_rc" -eq 2 ]; then
-    say "schema validation skipped (python3 with PyYAML and jsonschema, or pinned schemas, unavailable)"
+    if [ "$strict" -eq 1 ]; then
+      note_fail "schema validation skipped (python3 with PyYAML and jsonschema, or pinned schemas, unavailable); --strict requires it"
+    else
+      warn "schema validation skipped (python3 with PyYAML and jsonschema, or pinned schemas, unavailable)"
+    fi
   else
     while IFS= read -r line; do
       note_fail "schema: $line"
