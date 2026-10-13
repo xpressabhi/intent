@@ -146,7 +146,7 @@ Warnings print as `verify-change: WARN: ...` and never fail the run.
 - If every changed path matches `policy.record_exempt_paths` (default: `docs/**`, `**/*.md`, `.intent/**`; configurable) → pass with the notice `verify-records: docs-only change; no record required`.
 - Otherwise exactly one record directory must be added or modified in the range (a `.intent/changes/CHG-*/` containing `proposal.md`):
   - 0 → fail `no Intent record for this change`, unless a commit in the range contains an `Intent-Skip: <reason>` trailer (then pass with a notice that names the reason);
-  - 1 → pass and print `verify-records: record CHG-XXXX` (CI forwards the directory);
+  - 1 → pass and print `verify-records: record .intent/changes/CHG-XXXX` (CI forwards the directory);
   - ≥2 → fail `one record per change`.
 - Rationale for `.intent/**` exemption: record maintenance and bundle policy edits must not require their own record; changes that accompany a record are covered by that record's declared scope.
 
